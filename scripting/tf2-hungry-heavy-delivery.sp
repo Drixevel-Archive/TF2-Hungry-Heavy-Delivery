@@ -89,13 +89,61 @@ bool g_bPlayersFrozen;
 bool g_bWaitingForPlayers;
 Handle g_hSecondsTimer;
 Handle g_hMillisecondsTimer;
-bool g_bConnected[MAXPLAYERS + 1];
-int g_iTriggerDelay[MAXPLAYERS + 1];
-bool g_bIsFemale[MAXPLAYERS + 1]; //Female Scout toggle on/off.
+
+enum struct Player
+{
+	bool connected;
+	int triggerdelay;
+	bool isfemale;
+
+	bool backgroundmusic;
+	Handle backgroundmusictimer;
+
+	bool supreme;
+
+	int pizza;
+	int destination;
+	int laststop;
+
+	int totalpizzas;
+	int climbs;
+}
+
+Player g_Player[MAXPLAYERS + 1];
+
+enum struct Airtime
+{
+	int secondaryshots;
+	float starttime;
+	float topspeed;
+	bool timing;
+	int offgrounddelay;
+	float currentairtimerecord;
+	float roundairtimerecord;
+	int currentdeliveriesrecord;
+	int rounddeliveriesrecord;
+	int lastpositivemessage;
+	int lastnegativemessage;
+	int spritetrail;
+	Handle airtimesound;
+	bool recordcache;
+}
+
+Airtime g_Airtime[MAXPLAYERS + 1];
+
+enum struct Tutorial
+{
+	int tutorialstep;
+	int climbamount;
+	Handle tutorialtimer;
+	bool showtutorialmenu;
+	bool tutorialplayed;
+	int flashtext;
+}
+
+Tutorial g_Tutorial[MAXPLAYERS + 1];
 
 //Background Music
-bool g_bPlayBackgroundMusic[MAXPLAYERS + 1];
-Handle g_hTimer_BackgroundMusic[MAXPLAYERS + 1];
 ArrayList g_hArray_BackgroundMusic;
 ArrayList g_hArray_BackgroundMusicSeconds;
 
@@ -106,42 +154,18 @@ Handle g_hSync_Mode;
 
 //Mutations
 bool g_bMutations[MUTATIONS];	//Mutations are random gameplay elements.
-bool g_bSupremeDelivery[MAXPLAYERS + 1];
 
 //Timer
 int g_iRemainingTime;
 Handle g_hSync_RemainingTime;
 
 //Pizza Delivery
-int g_iPizza[MAXPLAYERS + 1] = {INVALID_ENT_REFERENCE, ...};
 Handle g_hSDKPickup;
 Handle g_hSync_Score;
-int g_iTotalPizzas[MAXPLAYERS + 1];
 
 //Delivery Stops
 ArrayList g_hArray_Destinations;
-int g_iDeliveryDestination[MAXPLAYERS + 1] = {INVALID_ENT_REFERENCE, ...};
 Handle g_hSync_Destination;
-int g_iLastStop[MAXPLAYERS + 1] = {INVALID_ENT_REFERENCE, ...};
-
-//Airtime
-int g_iSecondaryShots[MAXPLAYERS + 1];
-float g_fStartTime[MAXPLAYERS + 1];
-float g_fTopSpeed[MAXPLAYERS + 1];
-bool g_bTiming[MAXPLAYERS + 1];
-int g_iOffGroundDelay[MAXPLAYERS + 1];
-float g_fCurrentAirtimeRecord[MAXPLAYERS + 1];
-float g_fRoundAirtimeRecord[MAXPLAYERS + 1];
-int g_iCurrentDeliveriesRecord[MAXPLAYERS + 1];
-int g_iRoundDeliveriesRecord[MAXPLAYERS + 1];
-int g_iLastPositiveMessage[MAXPLAYERS + 1];
-int g_iLastNegativeMessage[MAXPLAYERS + 1];
-int g_iSpriteTrail[MAXPLAYERS + 1] = {INVALID_ENT_REFERENCE, ...};
-Handle g_hTimer_AirtimeSound[MAXPLAYERS + 1];
-bool g_bRecordCache[MAXPLAYERS + 1];
-
-//Climbing
-int g_iClimbs[MAXPLAYERS + 1];
 
 //Beam tempent materials
 int g_iLaserMaterial;
@@ -151,14 +175,6 @@ int g_iHaloMaterial;
 Handle wep_primary;
 Handle wep_secondary;
 Handle wep_melee;
-
-//Tutorial
-int g_iTutorialStep[MAXPLAYERS + 1];
-int g_iClimbAmount[MAXPLAYERS + 1];
-Handle g_hTutorialTimer[MAXPLAYERS + 1];
-bool g_bShowTutorialMenu[MAXPLAYERS + 1];
-bool g_bTutorialPlayed[MAXPLAYERS + 1];
-int g_iFlashText[MAXPLAYERS + 1];
 
 public Plugin myinfo =
 {
@@ -574,7 +590,7 @@ public Action OnSoundPlay(int clients[MAXPLAYERS], int &numClients, char sample[
 		return Plugin_Stop;
 	}
 
-	if (IsPlayerIndex(entity) && StrContains(sample, "vo/scout_") == 0 && g_bIsFemale[entity])
+	if (IsPlayerIndex(entity) && StrContains(sample, "vo/scout_") == 0 && g_Player[entity].isfemale)
 	{
 		char sBuffer[2][512];
 		ExplodeString(sample, "/", sBuffer, 2, 512);
@@ -602,8 +618,6 @@ public void OnPluginEnd()
 			ClearOverlay(i);
 		}
 	}
-
-	TF2_ForceWin(TFTeam_Unassigned);
 }
 
 public Action Timer_TicksInSeconds(Handle timer)
@@ -623,15 +637,15 @@ public Action Timer_TicksInSeconds(Handle timer)
 			sTime[0] = '\0';
 			sRecord[0] = '\0';
 
-			if (g_bTiming[i])
+			if (g_Airtime[i].timing)
 			{
-				FormatPlayerTime(GetEngineTime() - g_fStartTime[i], sTime, sizeof(sTime), true, 1);
+				FormatPlayerTime(GetEngineTime() - g_Airtime[i].starttime, sTime, sizeof(sTime), true, 1);
 				Format(sTime, sizeof(sTime), " | Airtime: %s", sTime);
 			}
 
-			if (g_fCurrentAirtimeRecord[i] > 0.0)
+			if (g_Airtime[i].currentairtimerecord > 0.0)
 			{
-				FormatEx(sRecord, sizeof(sRecord), " | Airtime Record: %.2f", g_fCurrentAirtimeRecord[i]);
+				FormatEx(sRecord, sizeof(sRecord), " | Airtime Record: %.2f", g_Airtime[i].currentairtimerecord);
 			}
 
 			PrintHintText(i, "Speed: %.2f%s%s", speed, sRecord, strlen(sTime) > 0 ? sTime : "");
@@ -646,7 +660,7 @@ public Action Timer_TicksInSeconds(Handle timer)
 
 		if (IsPlayerIndex(winner))
 		{
-			CPrintToChatAll("%s %N has won employee of the round with %i pizzas!", PLUGIN_TAG_COLORED, winner, g_iTotalPizzas[winner]);
+			CPrintToChatAll("%s %N has won employee of the round with %i pizzas!", PLUGIN_TAG_COLORED, winner, g_Player[winner].totalpizzas);
 			winning_team = TF2_GetClientTeam(winner);
 
 			char sWinning[PLATFORM_MAX_PATH];
@@ -724,9 +738,9 @@ public Action Timer_TicksInMilliseconds(Handle timer)
 			sArrow[0] = '\0';
 			sRecord[0] = '\0';
 
-			if (g_iDeliveryDestination[i] != INVALID_ENT_REFERENCE)
+			if (g_Player[i].destination != INVALID_ENT_REFERENCE)
 			{
-				entity = EntRefToEntIndex(g_iDeliveryDestination[i]);
+				entity = EntRefToEntIndex(g_Player[i].destination);
 
 				if (IsValidEntity(entity))
 				{
@@ -735,34 +749,34 @@ public Action Timer_TicksInMilliseconds(Handle timer)
 				}
 			}
 
-			if (g_bTiming[i])
+			if (g_Airtime[i].timing)
 			{
-				FormatPlayerTime(GetEngineTime() - g_fStartTime[i], sTime, sizeof(sTime), true, 1);
+				FormatPlayerTime(GetEngineTime() - g_Airtime[i].starttime, sTime, sizeof(sTime), true, 1);
 				Format(sTime, sizeof(sTime), " | Airtime: %s", sTime);
 			}
 
 			GetGamemodeName(g_iGamemodeType, sGamemode, sizeof(sGamemode));
-			SetHudTextParams(0.01, 0.07, 99999.0, 91, 255, 51, 225, g_iFlashText[i] > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			SetHudTextParams(0.01, 0.07, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_Mode, "Mode: %s", sGamemode);
 
-			SetHudTextParams(0.01, 0.1, 99999.0, 91, 255, 51, 225, g_iFlashText[i] > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			SetHudTextParams(0.01, 0.1, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_RemainingTime, "On the Clock: %02d:%02d", g_iRemainingTime / 60, g_iRemainingTime % 60);
 
-			GetDeliveryDestinationName(g_iDeliveryDestination[i], sDestination, sizeof(sDestination));
-			SetHudTextParams(0.01, 0.13, 99999.0, 91, 255, 51, 225, g_iFlashText[i] > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			GetDeliveryDestinationName(g_Player[i].destination, sDestination, sizeof(sDestination));
+			SetHudTextParams(0.01, 0.13, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_Destination, "Destination: %s %s", sDestination, sArrow);
 
-			if (g_iCurrentDeliveriesRecord[i] > 0)
+			if (g_Airtime[i].currentdeliveriesrecord > 0)
 			{
-				FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_iCurrentDeliveriesRecord[i]);
+				FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_Airtime[i].currentdeliveriesrecord);
 			}
 
-			SetHudTextParams(0.01, 0.16, 99999.0, 91, 255, 51, 225, g_iFlashText[i] > 0 ? 2 : 0, 1.0, 0.0, 0.0);
-			ShowSyncHudText(i, g_hSync_Score, "Deliveries: %i%s", g_iTotalPizzas[i], sRecord);
+			SetHudTextParams(0.01, 0.16, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			ShowSyncHudText(i, g_hSync_Score, "Deliveries: %i%s", g_Player[i].totalpizzas, sRecord);
 
-			if (g_iFlashText[i] > 0)
+			if (g_Tutorial[i].flashtext > 0)
 			{
-				g_iFlashText[i]--;
+				g_Tutorial[i].flashtext--;
 			}
 		}
 	}
@@ -945,7 +959,7 @@ int GetGameWinner()
 	{
 		if (IsClientInGame(i))
 		{
-			if (g_iTotalPizzas[i] < 1)
+			if (g_Player[i].totalpizzas< 1)
 			{
 				continue;
 			}
@@ -956,7 +970,7 @@ int GetGameWinner()
 				continue;
 			}
 
-			if (g_iTotalPizzas[i] > g_iTotalPizzas[winner])
+			if (g_Player[i].totalpizzas > g_Player[winner].totalpizzas)
 			{
 				winner = i;
 			}
@@ -968,10 +982,10 @@ int GetGameWinner()
 
 void ResetReferenceData(int client)
 {
-	g_iPizza[client] = INVALID_ENT_REFERENCE;
-	g_iDeliveryDestination[client] = INVALID_ENT_REFERENCE;
-	g_iLastStop[client] = INVALID_ENT_REFERENCE;
-	g_iSpriteTrail[client] = INVALID_ENT_REFERENCE;
+	g_Player[client].pizza = INVALID_ENT_REFERENCE;
+	g_Player[client].destination = INVALID_ENT_REFERENCE;
+	g_Player[client].laststop = INVALID_ENT_REFERENCE;
+	g_Airtime[client].spritetrail = INVALID_ENT_REFERENCE;
 }
 
 public void OnClientPutInServer(int client)
@@ -981,31 +995,30 @@ public void OnClientPutInServer(int client)
 		return;
 	}
 
-	g_bConnected[client] = true;
-	g_iTriggerDelay[client] = -1;
+	g_Player[client].connected = true;
+	g_Player[client].triggerdelay = -1;
 
 	ResetReferenceData(client);
 
 	SetHudScore(client, 0, false);
 
-	g_fCurrentAirtimeRecord[client] = 0.0;
-	g_fRoundAirtimeRecord[client] = 0.0;
+	g_Airtime[client].currentairtimerecord = 0.0;
+	g_Airtime[client].roundairtimerecord = 0.0;
 
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 	SDKHook(client, SDKHook_Spawn, OnPlayerSpawn);
 	SDKHook(client, SDKHook_SetTransmit, OnSetTransmit);
 
-	g_bPlayBackgroundMusic[client] = true;
+	g_Player[client].backgroundmusic = true;
 
-	g_iTutorialStep[client] = TUTORIAL_STEP_NONE;
-	g_iClimbAmount[client] = 0;
-	StopTimer(g_hTutorialTimer[client]);
-	g_bShowTutorialMenu[client] = true;
-	g_bTutorialPlayed[client] = false;
+	g_Tutorial[client].tutorialstep = TUTORIAL_STEP_NONE;
+	g_Tutorial[client].climbamount = 0;
+	StopTimer(g_Tutorial[client].tutorialtimer);
+	g_Tutorial[client].showtutorialmenu = true;
+	g_Tutorial[client].tutorialplayed = false;
 
-	g_bIsFemale[client] = false;
-
-	g_bSupremeDelivery[client] = false;
+	g_Player[client].isfemale = false;
+	g_Player[client].supreme = false;
 
 	EmitSoundToClientSafe(client, "hungryheavydelivery/jsr_groove_2.mp3", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.7);
 }
@@ -1022,11 +1035,11 @@ public void OnClientCookiesCached(int client)
 
 	if (strlen(sValue) > 0)
 	{
-		g_bPlayBackgroundMusic[client] = StringToBool(sValue);
+		g_Player[client].backgroundmusic = StringToBool(sValue);
 	}
 	else
 	{
-		g_bPlayBackgroundMusic[client] = true;
+		g_Player[client].backgroundmusic = true;
 		SetClientCookie(client, g_hCookie_ToggleMusic, "1");
 	}
 
@@ -1035,11 +1048,11 @@ public void OnClientCookiesCached(int client)
 
 	if (strlen(sValue) > 0)
 	{
-		g_bShowTutorialMenu[client] = StringToBool(sValue);
+		g_Tutorial[client].showtutorialmenu = StringToBool(sValue);
 	}
 	else
 	{
-		g_bShowTutorialMenu[client] = true;
+		g_Tutorial[client].showtutorialmenu = true;
 		SetClientCookie(client, g_hCookie_Tutorial, "1");
 	}
 
@@ -1048,11 +1061,11 @@ public void OnClientCookiesCached(int client)
 
 	if (strlen(sValue) == 0)
 	{
-		g_bTutorialPlayed[client] = StringToBool(sValue);
+		g_Tutorial[client].tutorialplayed = StringToBool(sValue);
 	}
 	else
 	{
-		g_bTutorialPlayed[client] = true;
+		g_Tutorial[client].tutorialplayed = true;
 		SetClientCookie(client, g_hCookie_TutorialPlayed, "1");
 	}
 
@@ -1061,11 +1074,11 @@ public void OnClientCookiesCached(int client)
 
 	if (strlen(sValue) > 0)
 	{
-		g_bIsFemale[client] = StringToBool(sValue);
+		g_Player[client].isfemale = StringToBool(sValue);
 	}
 	else
 	{
-		g_bIsFemale[client] = false;
+		g_Player[client].isfemale = false;
 		SetClientCookie(client, g_hCookie_IsFemale, "0");
 	}
 }
@@ -1092,8 +1105,8 @@ public void TQuery_OnGetRecord(Database db, DBResultSet results, const char[] er
 
 	while (results.FetchRow())
 	{
-		g_fCurrentAirtimeRecord[client] = results.FetchFloat(0);
-		g_iCurrentDeliveriesRecord[client] = results.FetchInt(1);
+		g_Airtime[client].currentairtimerecord = results.FetchFloat(0);
+		g_Airtime[client].currentdeliveriesrecord = results.FetchInt(1);
 	}
 }
 
@@ -1104,36 +1117,35 @@ public void OnClientDisconnect(int client)
 		return;
 	}
 
-	g_bConnected[client] = false;
-	g_iTriggerDelay[client] = -1;
+	g_Player[client].connected = false;
+	g_Player[client].triggerdelay = -1;
 
 	ResetReferenceData(client);
 
 	SetHudScore(client, 0, false);
 
-	g_fCurrentAirtimeRecord[client] = 0.0;
-	g_fRoundAirtimeRecord[client] = 0.0;
+	g_Airtime[client].currentairtimerecord = 0.0;
+	g_Airtime[client].roundairtimerecord = 0.0;
 
-	g_iCurrentDeliveriesRecord[client] = 0;
-	g_iRoundDeliveriesRecord[client] = 0;
+	g_Airtime[client].currentdeliveriesrecord = 0;
+	g_Airtime[client].rounddeliveriesrecord = 0;
 
-	g_fStartTime[client] = 0.0;
-	g_bTiming[client] = false;
+	g_Airtime[client].starttime = 0.0;
+	g_Airtime[client].timing = false;
 
-	g_bPlayBackgroundMusic[client] = true;
+	g_Player[client].backgroundmusic = true;
 
-	g_iTutorialStep[client] = TUTORIAL_STEP_NONE;
-	g_iClimbAmount[client] = 0;
-	StopTimer(g_hTutorialTimer[client]);
-	g_bShowTutorialMenu[client] = true;
-	g_bTutorialPlayed[client] = false;
+	g_Tutorial[client].tutorialstep = TUTORIAL_STEP_NONE;
+	g_Tutorial[client].climbamount = 0;
+	StopTimer(g_Tutorial[client].tutorialtimer);
+	g_Tutorial[client].showtutorialmenu = true;
+	g_Tutorial[client].tutorialplayed = false;
 
-	g_bIsFemale[client] = false;
+	g_Player[client].isfemale = false;
+	g_Player[client].supreme = false;
 
-	g_bSupremeDelivery[client] = false;
-
-	StopTimer(g_hTimer_AirtimeSound[client]);
-	StopTimer(g_hTimer_BackgroundMusic[client]);
+	StopTimer(g_Airtime[client].airtimesound);
+	StopTimer(g_Player[client].backgroundmusictimer);
 }
 
 //This has a lot of problems but it works for now.
@@ -1150,7 +1162,7 @@ public Action OnPlayerSpawn(int entity)
 //Rather people not fuck with people in tutorial mode.
 public Action OnSetTransmit(int client, int entity)
 {
-	if (IsPlayerIndex(client) && IsPlayerAlive(client) && entity != client && g_iTutorialStep[entity] > TUTORIAL_STEP_NONE)
+	if (IsPlayerIndex(client) && IsPlayerAlive(client) && entity != client && g_Tutorial[entity].tutorialstep > TUTORIAL_STEP_NONE)
 	{
 		return Plugin_Stop;
 	}
@@ -1191,9 +1203,9 @@ public void OnGameFrame()
 			TE_SendToAll();
 		}
 
-		if (g_iDeliveryDestination[i] != INVALID_ENT_REFERENCE)
+		if (g_Player[i].destination != INVALID_ENT_REFERENCE)
 		{
-			destination = EntRefToEntIndex(g_iDeliveryDestination[i]);
+			destination = EntRefToEntIndex(g_Player[i].destination);
 
 			if (IsValidEntity(destination))
 			{
@@ -1219,13 +1231,13 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 		return;
 	}
 
-	if (g_bConnected[client])
+	if (g_Player[client].connected)
 	{
-		g_bConnected[client] = false;
+		g_Player[client].connected = false;
 
-		if (g_bShowTutorialMenu[client])
+		if (g_Tutorial[client].showtutorialmenu)
 		{
-			g_bShowTutorialMenu[client] = false;
+			g_Tutorial[client].showtutorialmenu = false;
 			SetClientCookie(client, g_hCookie_Tutorial, "0");
 			OpenTutorialMenu(client);
 		}
@@ -1235,19 +1247,19 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 		}
 	}
 
-	g_iTriggerDelay[client] = -1;
+	g_Player[client].triggerdelay = -1;
 
 	ResetReferenceData(client);
 
 	SetSpawnFunctions(client);
 	PlayBackgroundMusic(client);
 
-	if (g_bIsFemale[client])
+	if (g_Player[client].isfemale)
 	{
 		SetModel(client, "models/player/scout_female.mdl");
 	}
 
-	g_bSupremeDelivery[client] = false;
+	g_Player[client].supreme = false;
 
 	ClearTutorial(client);
 }
@@ -1283,7 +1295,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	KillPizzaBackpack(client);
 	ClearTutorial(client);
 
-	if (g_bTiming[client])
+	if (g_Airtime[client].timing)
 	{
 		EmitSoundToClientSafeDelayed(client, "coach/coach_student_died.wav", 1.0);
 	}
@@ -1357,8 +1369,8 @@ public void Event_OnTeamplayRoundStart(Event event, const char[] name, bool dont
 		SetHudScore(i, 0);
 		PlayBackgroundMusic(i);
 
-		g_fRoundAirtimeRecord[i] = 0.0;
-		g_iRoundDeliveriesRecord[i] = 0;
+		g_Airtime[i].roundairtimerecord = 0.0;
+		g_Airtime[i].rounddeliveriesrecord = 0;
 
 		if (IsClientConnected(i))
 		{
@@ -1564,7 +1576,7 @@ public void Event_OnTeamplayWaitingEnds(Event event, const char[] name, bool don
 {
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (g_bTiming[i])
+		if (g_Airtime[i].timing)
 		{
 			FinishTimer(i);
 		}
@@ -1596,9 +1608,9 @@ public void Event_OnTeamplayRoundWin(Event event, const char[] name, bool dontBr
 
 		ClearTutorial(i);
 
-		if (g_iRoundDeliveriesRecord[i] > g_iCurrentDeliveriesRecord[i])
+		if (g_Airtime[i].rounddeliveriesrecord > g_Airtime[i].currentdeliveriesrecord)
 		{
-			g_iCurrentDeliveriesRecord[i] = g_iRoundDeliveriesRecord[i];
+			g_Airtime[i].currentdeliveriesrecord = g_Airtime[i].rounddeliveriesrecord;
 
 			char sSteamID[32];
 			GetClientAuthId(i, AuthId_Steam2, sSteamID, sizeof(sSteamID));
@@ -1609,7 +1621,7 @@ public void Event_OnTeamplayRoundWin(Event event, const char[] name, bool dontBr
 				SQL_FetchClientName(i, g_hDatabase, sName, sizeof(sName));
 
 				char sQuery[256];
-				g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_fCurrentAirtimeRecord[i], g_iCurrentDeliveriesRecord[i], sCurrentMap, g_fCurrentAirtimeRecord[i], g_iCurrentDeliveriesRecord[i]);
+				g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_Airtime[i].currentairtimerecord, g_Airtime[i].currentdeliveriesrecord, sCurrentMap, g_Airtime[i].currentairtimerecord, g_Airtime[i].currentdeliveriesrecord);
 				g_hDatabase.Query(onInsertRecord, sQuery);
 			}
 		}
@@ -1697,13 +1709,13 @@ void SetSpawnFunctions(int client)
 	TF2Attrib_SetByName_Weapons(client, secondary, "faster reload rate", 1.50);
 	TF2Attrib_SetByName_Weapons(client, secondary, "fire rate penalty", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 30.0 : 5.00);
 
-	g_bRecordCache[client] = false;
-	g_iClimbs[client] = 0;
+	g_Airtime[client].recordcache = false;
+	g_Player[client].climbs = 0;
 }
 
 void PlayBackgroundMusic(int client)
 {
-	if (!g_bPlayBackgroundMusic[client] || g_hTimer_BackgroundMusic[client] != null)
+	if (!g_Player[client].backgroundmusic || g_Player[client].backgroundmusictimer != null)
 	{
 		return;
 	}
@@ -1715,20 +1727,20 @@ void PlayBackgroundMusic(int client)
 
 	EmitSoundToClientSafe(client, sMusic, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.5);
 
-	StopTimer(g_hTimer_BackgroundMusic[client]);
-	g_hTimer_BackgroundMusic[client] = CreateTimer(g_hArray_BackgroundMusicSeconds.Get(index), Timer_NextSong, client, TIMER_FLAG_NO_MAPCHANGE);
+	StopTimer(g_Player[client].backgroundmusictimer);
+	g_Player[client].backgroundmusictimer = CreateTimer(g_hArray_BackgroundMusicSeconds.Get(index), Timer_NextSong, client, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action Timer_NextSong(Handle timer, any data)
 {
 	int client = data;
-	g_hTimer_BackgroundMusic[client] = null;
+	g_Player[client].backgroundmusictimer = null;
 	PlayBackgroundMusic(client);
 }
 
 void StopBackgroundMusic(int client)
 {
-	StopTimer(g_hTimer_BackgroundMusic[client]);
+	StopTimer(g_Player[client].backgroundmusictimer);
 
 	char sMusic[PLATFORM_MAX_PATH];
 	for (int i = 0; i < g_hArray_BackgroundMusic.Length; i++)
@@ -1785,7 +1797,7 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 			vecVelocity[2] = -vecVelocity[2];
 			vecOrigin[2] += bIsOnGround ? 25.0 : 0.0;
 
-			g_iSecondaryShots[client] = 0;
+			g_Airtime[client].secondaryshots = 0;
 
 			if (g_iGamemodeType != GAMEMODE_TYPE_BUNNYHOPPING)
 			{
@@ -1814,11 +1826,11 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 			AnglesToVelocity(vecAngles, (g_bMutations[MUTATION_DOUBLEVELOCITY] ? convar_Velocity_Secondary_Double.FloatValue : convar_Velocity_Secondary.FloatValue), vecVelocity);
 			vecOrigin[2] += bIsOnGround ? 25.0 : 0.0;
 
-			g_iSecondaryShots[client]++;
+			g_Airtime[client].secondaryshots++;
 
-			if (g_iSecondaryShots[client] >= 3)
+			if (g_Airtime[client].secondaryshots >= 3)
 			{
-				g_iSecondaryShots[client] = 0;
+				g_Airtime[client].secondaryshots = 0;
 
 				SetEntProp(client, Prop_Send, "m_iAirDash", 0);
 
@@ -1839,7 +1851,7 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 		}
 		case 2:
 		{
-			if (!g_bTiming[client] && bIsOnGround)
+			if (!g_Airtime[client].timing && bIsOnGround)
 			{
 				GetAngleVectors(vecAngles, vecVelocity, vecDummy, vecDummy);
 				ScaleVector(vecVelocity, g_bMutations[MUTATION_DOUBLEVELOCITY] ? convar_Velocity_Melee_Double.FloatValue : convar_Velocity_Melee.FloatValue);
@@ -1848,13 +1860,13 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 		}
 	}
 
-	if (slot == 2 && (!meleevault || g_iTutorialStep[client] == TUTORIAL_STEP_CLIMB))
+	if (slot == 2 && (!meleevault || g_Tutorial[client].tutorialstep == TUTORIAL_STEP_CLIMB))
 	{
 		AttemptWallClimb(client);
 		return Plugin_Continue;
 	}
 
-	if (g_iTutorialStep[client] < TUTORIAL_STEP_CLIMB && (g_iGamemodeType != GAMEMODE_TYPE_BUNNYHOPPING || g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING && bIsOnGround && slot == 1) || g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING && g_iTutorialStep[client] > TUTORIAL_STEP_NONE)
+	if (g_Tutorial[client].tutorialstep < TUTORIAL_STEP_CLIMB && (g_iGamemodeType != GAMEMODE_TYPE_BUNNYHOPPING || g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING && bIsOnGround && slot == 1) || g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING && g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE)
 	{
 		TeleportEntity(client, vecOrigin, NULL_VECTOR, vecVelocity);
 
@@ -1863,14 +1875,14 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 			EmitSoundToClientSafe(client, "weapons/airstrike_fire_01.wav");
 		}
 
-		if (g_bTiming[client] && GetRandomFloat(0.0, 1.0) > 0.7)
+		if (g_Airtime[client].timing && GetRandomFloat(0.0, 1.0) > 0.7)
 		{
 			SpeakResponseConceptDelayed(client, "TLK_PLAYER_GO", 0.3);
 		}
 
-		if (g_iTutorialStep[client] > TUTORIAL_STEP_NONE && g_hTutorialTimer[client] == null)
+		if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE && g_Tutorial[client].tutorialtimer == null)
 		{
-			g_hTutorialTimer[client] = CreateTimer(5.0, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+			g_Tutorial[client].tutorialtimer = CreateTimer(5.0, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
 
@@ -1926,33 +1938,33 @@ void AttemptWallClimb(int client)
 	vecVelocity[2] = g_bMutations[MUTATION_DOUBLEVELOCITY] ? convar_Velocity_Melee_Climb_Double.FloatValue : convar_Velocity_Melee_Climb.FloatValue;
 	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vecVelocity);
 
-	if (g_iTutorialStep[client] == TUTORIAL_STEP_CLIMB)
+	if (g_Tutorial[client].tutorialstep == TUTORIAL_STEP_CLIMB)
 	{
-		if (g_iClimbAmount[client] != -1)
+		if (g_Tutorial[client].climbamount != -1)
 		{
-			g_iClimbAmount[client]++;
-			PrintCenterText(client, "Climb %i/5 times!", g_iClimbAmount[client]);
+			g_Tutorial[client].climbamount++;
+			PrintCenterText(client, "Climb %i/5 times!", g_Tutorial[client].climbamount);
 		}
 
-		if (g_iClimbAmount[client] >= 5)
+		if (g_Tutorial[client].climbamount >= 5)
 		{
 			EmitSoundToClientSafe(client, "ui/duel_score_behind.wav");
-			g_iClimbAmount[client] = -1;
+			g_Tutorial[client].climbamount = -1;
 
-			if (g_hTutorialTimer[client] == null)
+			if (g_Tutorial[client].tutorialtimer == null)
 			{
-				g_hTutorialTimer[client] = CreateTimer(3.0, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+				g_Tutorial[client].tutorialtimer = CreateTimer(3.0, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 			}
 		}
 		else
 		{
-			EmitSoundToClientSafe(client, "ui/hitsound_beepo.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, (100 + (g_iClimbAmount[client] * 3)));
+			EmitSoundToClientSafe(client, "ui/hitsound_beepo.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, (100 + (g_Tutorial[client].climbamount * 3)));
 		}
 	}
 	else
 	{
-		EmitSoundToClientSafe(client, "ui/hitsound_beepo.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, (100 + (g_iClimbs[client] * 3)));
-		g_iClimbs[client]++;
+		EmitSoundToClientSafe(client, "ui/hitsound_beepo.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, (100 + (g_Player[client].climbs * 3)));
+		g_Player[client].climbs++;
 	}
 }
 
@@ -1970,8 +1982,8 @@ public Action Timer_NextTutorialStep(Handle timer, any data)
 		return Plugin_Stop;
 	}
 
-	g_hTutorialTimer[client] = null;
-	g_iTutorialStep[client]++;
+	g_Tutorial[client].tutorialtimer = null;
+	g_Tutorial[client].tutorialstep++;
 	LoadTutorialStep(client);
 
 	return Plugin_Stop;
@@ -1987,7 +1999,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 	if (GetEntityFlags(client) & FL_ONGROUND)
 	{
-		g_iClimbs[client] = 0;
+		g_Player[client].climbs = 0;
 	}
 
 	if (g_bWaitingForPlayers || g_bBetweenRounds || g_bPlayersFrozen)
@@ -1996,19 +2008,19 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		return Plugin_Continue;
 	}
 
-	if (g_iTutorialStep[client] == TUTORIAL_STEP_DELIVERY && !IsClientNearEntityViaName(client, "tutorial_delivery_point", "info_teleport_destination", 500.0))
+	if (g_Tutorial[client].tutorialstep == TUTORIAL_STEP_DELIVERY && !IsClientNearEntityViaName(client, "tutorial_delivery_point", "info_teleport_destination", 500.0))
 	{
 		TeleportToDestination(client, "tutorial_delivery_point");
 	}
 
-	if ((g_iTutorialStep[client] >= TUTORIAL_STEP_PISTOL && g_iTutorialStep[client] <= TUTORIAL_STEP_FAN))
+	if ((g_Tutorial[client].tutorialstep >= TUTORIAL_STEP_PISTOL && g_Tutorial[client].tutorialstep <= TUTORIAL_STEP_FAN))
 	{
 		vel[0] = 0.0;
 		vel[1] = 0.0;
 		vel[2] = 0.0;
 		return Plugin_Changed;
 	}
-	else if ((g_iTutorialStep[client] >= TUTORIAL_STEP_CLIMB && g_iTutorialStep[client] <= TUTORIAL_STEP_DELIVERY) && !(buttons & IN_FORWARD))
+	else if ((g_Tutorial[client].tutorialstep >= TUTORIAL_STEP_CLIMB && g_Tutorial[client].tutorialstep <= TUTORIAL_STEP_DELIVERY) && !(buttons & IN_FORWARD))
 	{
 		vel[0] = 0.0;
 		vel[1] = 0.0;
@@ -2022,12 +2034,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		return Plugin_Continue;
 	}
 
-	if (!(GetEntityFlags(client) & FL_ONGROUND) && !g_bTiming[client] && HasPizzaBackpack(client))
+	if (!(GetEntityFlags(client) & FL_ONGROUND) && !g_Airtime[client].timing && HasPizzaBackpack(client))
 	{
 		//This buffer delay makes clients stay in the air for a certain amount of time before airtime starts.
-		g_iOffGroundDelay[client]++;
+		g_Airtime[client].offgrounddelay++;
 
-		if (g_iOffGroundDelay[client] < 200)
+		if (g_Airtime[client].offgrounddelay < 200)
 		{
 			return Plugin_Continue;
 		}
@@ -2036,32 +2048,32 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	}
 	else
 	{
-		g_iOffGroundDelay[client] = 0;
+		g_Airtime[client].offgrounddelay = 0;
 	}
 
 	float speed = GetPlayerSpeed(client);
 
-	if (g_bTiming[client] && speed > g_fTopSpeed[client])
+	if (g_Airtime[client].timing && speed > g_Airtime[client].topspeed)
 	{
-		g_fTopSpeed[client] = speed;
+		g_Airtime[client].topspeed = speed;
 	}
 
 	float vecOrigin[3];
 	GetClientAbsOrigin(client, vecOrigin);
 
-	if (GetEntityFlags(client) & FL_ONGROUND && g_bTiming[client])
+	if (GetEntityFlags(client) & FL_ONGROUND && g_Airtime[client].timing)
 	{
 		float finished = FinishTimer(client);
 		bool new_record;
 
-		if (finished > g_fRoundAirtimeRecord[client])
+		if (finished > g_Airtime[client].roundairtimerecord)
 		{
-			g_fRoundAirtimeRecord[client] = finished;
+			g_Airtime[client].roundairtimerecord = finished;
 		}
 
-		if (finished > g_fCurrentAirtimeRecord[client])
+		if (finished > g_Airtime[client].currentairtimerecord)
 		{
-			g_fCurrentAirtimeRecord[client] = finished;
+			g_Airtime[client].currentairtimerecord = finished;
 			new_record = true;
 
 			char sSteamID[32];
@@ -2073,7 +2085,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				SQL_FetchClientName(client, g_hDatabase, sName, sizeof(sName));
 
 				char sQuery[256];
-				g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_fCurrentAirtimeRecord[client], g_iCurrentDeliveriesRecord[client], sCurrentMap, g_fCurrentAirtimeRecord[client], g_iCurrentDeliveriesRecord[client]);
+				g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_Airtime[client].currentairtimerecord, g_Airtime[client].currentdeliveriesrecord, sCurrentMap, g_Airtime[client].currentairtimerecord, g_Airtime[client].currentdeliveriesrecord);
 				g_hDatabase.Query(onInsertRecord2, sQuery);
 			}
 
@@ -2092,18 +2104,18 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		}
 
 		char sDifference[32];
-		FormatEx(sDifference, sizeof(sDifference), "%.2f seconds behind record", finished - g_fCurrentAirtimeRecord[client]);
+		FormatEx(sDifference, sizeof(sDifference), "%.2f seconds behind record", finished - g_Airtime[client].currentairtimerecord);
 
-		CPrintToChat(client, "%s Accomplished Airtime: %.2f (%s) (Highest Speed: %.2f)", PLUGIN_TAG_COLORED, finished, new_record ? "NEW RECORD" : sDifference, g_fTopSpeed[client]);
-		g_fTopSpeed[client] = 0.0;
+		CPrintToChat(client, "%s Accomplished Airtime: %.2f (%s) (Highest Speed: %.2f)", PLUGIN_TAG_COLORED, finished, new_record ? "NEW RECORD" : sDifference, g_Airtime[client].topspeed);
+		g_Airtime[client].topspeed = 0.0;
 
 		EmitSoundToClientSafe(client, "ui/hitsound.wav");
 
-		if (finished >= (g_fCurrentAirtimeRecord[client] - 5.0))
+		if (finished >= (g_Airtime[client].currentairtimerecord - 5.0))
 		{
 			int chosen = GetRandomInt(1, 5);
 
-			if (g_iLastPositiveMessage[client] == chosen)
+			if (g_Airtime[client].lastpositivemessage == chosen)
 			{
 				chosen--;
 
@@ -2113,17 +2125,17 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				}
 			}
 
-			g_iLastPositiveMessage[client] = chosen;
+			g_Airtime[client].lastpositivemessage = chosen;
 
 			char sPositive[PLATFORM_MAX_PATH];
 			FormatEx(sPositive, sizeof(sPositive), "vo/heavy_positivevocalization0%i.mp3", chosen);
 			EmitSoundToClientSafe(client, sPositive);
 		}
-		else if (finished >= (g_fCurrentAirtimeRecord[client] - 20.0))
+		else if (finished >= (g_Airtime[client].currentairtimerecord - 20.0))
 		{
 			int chosen = GetRandomInt(1, 6);
 
-			if (g_iLastNegativeMessage[client] == chosen)
+			if (g_Airtime[client].lastnegativemessage == chosen)
 			{
 				chosen--;
 
@@ -2133,7 +2145,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				}
 			}
 
-			g_iLastNegativeMessage[client] = chosen;
+			g_Airtime[client].lastnegativemessage = chosen;
 
 			char sNegative[PLATFORM_MAX_PATH];
 			FormatEx(sNegative, sizeof(sNegative), "vo/heavy_negativevocalization0%i.mp3", chosen);
@@ -2165,12 +2177,12 @@ public void OnPizzaPickup(int entity, int other)
 	int time = GetTime();
 	int client = other;
 
-	if (!IsPlayerIndex(client) || (g_iTriggerDelay[client] > -1 && g_iTriggerDelay[client] > time))
+	if (!IsPlayerIndex(client) || (g_Player[client].triggerdelay > -1 && g_Player[client].triggerdelay > time))
 	{
 		return;
 	}
 
-	g_iTriggerDelay[client] = time + 3;
+	g_Player[client].triggerdelay = time + 3;
 
 	char sSound[PLATFORM_MAX_PATH];
 
@@ -2183,7 +2195,7 @@ public void OnPizzaPickup(int entity, int other)
 		TF2_RegeneratePlayer(client);
 		EquipWeaponSlot(client, slot);
 
-		if (g_iLastStop[client] != INVALID_ENT_REFERENCE && GetRandomFloat(0.0, 1.0) > 0.60)
+		if (g_Player[client].laststop != INVALID_ENT_REFERENCE && GetRandomFloat(0.0, 1.0) > 0.60)
 		{
 			SpeakResponseConceptDelayed(client, "TLK_TIRED", 0.4);
 		}
@@ -2193,7 +2205,7 @@ public void OnPizzaPickup(int entity, int other)
 	else
 	{
 		//Safety check to pick a destination if they have a pizza bag but no destination for some reason.
-		if (g_iDeliveryDestination[client] == INVALID_ENT_REFERENCE)
+		if (g_Player[client].destination == INVALID_ENT_REFERENCE)
 		{
 			PickDestination(client);
 		}
@@ -2208,7 +2220,7 @@ public void OnPizzaPickup(int entity, int other)
 
 void PickDestination(int client)
 {
-	if (g_iTutorialStep[client] > TUTORIAL_STEP_NONE)
+	if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE)
 	{
 		int entity = -1; char sName[64];
 		while ((entity = FindEntityByClassname(entity, "trigger_multiple")) != -1)
@@ -2217,7 +2229,7 @@ void PickDestination(int client)
 
 			if (StrEqual(sName, "pizza_delivery_1", false) || StrEqual(sName, "pizza_delivery_01", false))
 			{
-				g_iDeliveryDestination[client] = EntIndexToEntRef(entity);
+				g_Player[client].destination = EntIndexToEntRef(entity);
 				break;
 			}
 		}
@@ -2229,15 +2241,15 @@ void PickDestination(int client)
 
 	//We make sure that the delivery stop that it's picking isn't the one we have cached already.
 	//If this is their first stop then it will be invalid so it'll pull only once compared to the default value.
-	if (g_iLastStop[client] != INVALID_ENT_REFERENCE)
+	if (g_Player[client].laststop != INVALID_ENT_REFERENCE)
 	{
-		while (delivery == g_iLastStop[client])
+		while (delivery == g_Player[client].laststop)
 		{
 			delivery = g_hArray_Destinations.Get(GetRandomInt(0, g_hArray_Destinations.Length - 1));
 		}
 	}
 
-	g_iDeliveryDestination[client] = delivery;
+	g_Player[client].destination = delivery;
 }
 
 bool GivePizzaBackpack(int client, bool kill = false)
@@ -2282,12 +2294,12 @@ bool GivePizzaBackpack(int client, bool kill = false)
 		AcceptEntityInput(entity, "SetAnimation");
 
 		//Save the reference for this entity to the client.
-		g_iPizza[client] = EntIndexToEntRef(entity);
+		g_Player[client].pizza = EntIndexToEntRef(entity);
 
 		//Mutation for supreme pizzas. (we have the entity index here so might as well do stuff here instead of in the if statement)
 		if (g_bMutations[MUTATION_SUPREMEPIZZAS] && GetRandomInt(0, 10) > 8)
 		{
-			g_bSupremeDelivery[client] = true;
+			g_Player[client].supreme = true;
 
 			DispatchKeyValue(entity, "skin", "2");
 
@@ -2308,22 +2320,22 @@ void KillPizzaBackpack(int client)
 		return;
 	}
 
-	int pizzapack = EntRefToEntIndex(g_iPizza[client]);
+	int pizzapack = EntRefToEntIndex(g_Player[client].pizza);
 
 	if (IsValidEntity(pizzapack))
 	{
 		AcceptEntityInput(pizzapack, "Kill");
 	}
 
-	g_iPizza[client] = INVALID_ENT_REFERENCE;
+	g_Player[client].pizza = INVALID_ENT_REFERENCE;
 
 	//If we kill their pizza bag for some reason, there's no place to go anyways.
-	g_iDeliveryDestination[client] = INVALID_ENT_REFERENCE;
+	g_Player[client].destination = INVALID_ENT_REFERENCE;
 }
 
 bool HasPizzaBackpack(int client)
 {
-	return (g_iPizza[client] != INVALID_ENT_REFERENCE);
+	return (g_Player[client].pizza != INVALID_ENT_REFERENCE);
 }
 
 public void OnPizzaDelivery(int entity, int other)
@@ -2331,17 +2343,17 @@ public void OnPizzaDelivery(int entity, int other)
 	int time = GetTime();
 	int client = other;
 
-	if (!IsPlayerIndex(client) || (g_iTutorialStep[client] != TUTORIAL_STEP_DELIVERY && g_iTriggerDelay[client] > -1 && g_iTriggerDelay[client] > time))
+	if (!IsPlayerIndex(client) || (g_Tutorial[client].tutorialstep != TUTORIAL_STEP_DELIVERY && g_Player[client].triggerdelay > -1 && g_Player[client].triggerdelay > time))
 	{
 		return;
 	}
 
-	if (g_iTutorialStep[client] == TUTORIAL_STEP_DELIVERY)
+	if (g_Tutorial[client].tutorialstep == TUTORIAL_STEP_DELIVERY)
 	{
-		g_iTriggerDelay[client] = time + 3;
+		g_Player[client].triggerdelay = time + 3;
 	}
 
-	if (!HasPizzaBackpack(client) || g_iDeliveryDestination[client] == INVALID_ENT_REFERENCE || g_iDeliveryDestination[client] != EntIndexToEntRef(entity))
+	if (!HasPizzaBackpack(client) || g_Player[client].destination == INVALID_ENT_REFERENCE || g_Player[client].destination != EntIndexToEntRef(entity))
 	{
 		return;
 	}
@@ -2349,7 +2361,7 @@ public void OnPizzaDelivery(int entity, int other)
 	KillPizzaBackpack(client);
 
 	//Save their last stop so we can skip this when going back to grab a new pizza bag.
-	g_iLastStop[client] = EntIndexToEntRef(entity);
+	g_Player[client].laststop = EntIndexToEntRef(entity);
 
 	char sName[64];
 	GetEntPropString(entity, Prop_Data, "m_iName", sName, sizeof(sName));
@@ -2367,17 +2379,17 @@ public void OnPizzaDelivery(int entity, int other)
 		}
 	}
 
-	if (g_iTutorialStep[client] <= TUTORIAL_STEP_NONE)
+	if (g_Tutorial[client].tutorialstep <= TUTORIAL_STEP_NONE)
 	{
-		if (g_bSupremeDelivery[client])
+		if (g_Player[client].supreme)
 		{
-			g_iTotalPizzas[client] += 2;
-			g_iRoundDeliveriesRecord[client] += 2;
+			g_Player[client].totalpizzas += 2;
+			g_Airtime[client].rounddeliveriesrecord += 2;
 		}
 		else
 		{
-			g_iTotalPizzas[client]++;
-			g_iRoundDeliveriesRecord[client]++;
+			g_Player[client].totalpizzas++;
+			g_Airtime[client].rounddeliveriesrecord++;
 		}
 
 		if (g_iGamemodeType == GAMEMODE_TYPE_TEAMS)
@@ -2385,14 +2397,14 @@ public void OnPizzaDelivery(int entity, int other)
 			SendAnnouncerTeamMessage();
 		}
 
-		if (g_iRoundDeliveriesRecord[client] > g_iCurrentDeliveriesRecord[client] && !g_bRecordCache[client])
+		if (g_Airtime[client].rounddeliveriesrecord > g_Airtime[client].currentdeliveriesrecord && !g_Airtime[client].recordcache)
 		{
 			EmitSoundToClientSafe(client, "misc/achievement_earned.wav");
-			g_bRecordCache[client] = true;
+			g_Airtime[client].recordcache = true;
 		}
 	}
 
-	g_bSupremeDelivery[client] = false;
+	g_Player[client].supreme = false;
 
 	char sSound[PLATFORM_MAX_PATH];
 
@@ -2404,9 +2416,9 @@ public void OnPizzaDelivery(int entity, int other)
 
 	SpeakResponseConceptDelayed(client, "TLK_ACCEPT_DUEL", 1.0);
 
-	if (g_iTutorialStep[client] > TUTORIAL_STEP_NONE && g_hTutorialTimer[client] == null)
+	if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE && g_Tutorial[client].tutorialtimer == null)
 	{
-		g_hTutorialTimer[client] = CreateTimer(2.5, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+		g_Tutorial[client].tutorialtimer = CreateTimer(2.5, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
 
 	if (g_iGamemodeType == GAMEMODE_TYPE_TEAMS)
@@ -2425,15 +2437,15 @@ void SendAnnouncerTeamMessage()
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || g_iTotalPizzas[i] < 1)
+		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || g_Player[i].totalpizzas < 1)
 		{
 			continue;
 		}
 
 		switch (TF2_GetClientTeam(i))
 		{
-			case TFTeam_Red:	pizzas_red += g_iTotalPizzas[i];
-			case TFTeam_Blue:	pizzas_blue += g_iTotalPizzas[i];
+			case TFTeam_Red:	pizzas_red += g_Player[i].totalpizzas;
+			case TFTeam_Blue:	pizzas_blue += g_Player[i].totalpizzas;
 		}
 	}
 
@@ -2488,46 +2500,46 @@ void SetHudScore(int client, int score, bool updatehud = true)
 		return;
 	}
 
-	g_iTotalPizzas[client] = ClampCell(score, 0, 99999);
+	g_Player[client].totalpizzas = ClampCell(score, 0, 99999);
 
 	//Due to how the millisecond timer is setup, this isn't as needed but it's still nice to update as soon as your total deliveries increases.
 	if (updatehud && IsClientInGame(client))
 	{
 		char sRecord[32];
 
-		if (g_iCurrentDeliveriesRecord[client] > 0)
+		if (g_Airtime[client].currentdeliveriesrecord > 0)
 		{
-			FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_iCurrentDeliveriesRecord[client]);
+			FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_Airtime[client].currentdeliveriesrecord);
 		}
 
-		SetHudTextParams(0.01, 0.3, 99999.0, 91, 255, 51, 225, g_iFlashText[client] > 0 ? 2 : 0, 1.0, 0.0, 0.0);
-		ShowSyncHudText(client, g_hSync_Score, "Deliveries: %i%s", g_iTotalPizzas[client], sRecord);
+		SetHudTextParams(0.01, 0.3, 99999.0, 91, 255, 51, 225, g_Tutorial[client].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+		ShowSyncHudText(client, g_hSync_Score, "Deliveries: %i%s", g_Player[client].totalpizzas, sRecord);
 	}
 }
 
 //Airtime
 void StartTimer(int client)
 {
-	if (g_iTutorialStep[client] > TUTORIAL_STEP_NONE)
+	if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE)
 	{
 		return;
 	}
 
-	g_fStartTime[client] = GetEngineTime();
-	g_bTiming[client] = true;
+	g_Airtime[client].starttime = GetEngineTime();
+	g_Airtime[client].timing = true;
 
 	CreateSpriteTrail(client);
 
-	StopTimer(g_hTimer_AirtimeSound[client]);
-	g_hTimer_AirtimeSound[client] = CreateTimer(8.0, Timer_RepeatAirSound, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-	TriggerTimer(g_hTimer_AirtimeSound[client], true);
+	StopTimer(g_Airtime[client].airtimesound);
+	g_Airtime[client].airtimesound = CreateTimer(8.0, Timer_RepeatAirSound, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	TriggerTimer(g_Airtime[client].airtimesound, true);
 }
 
 public Action Timer_RepeatAirSound(Handle timer, any data)
 {
 	int client = data;
 
-	if (IsPlayerIndex(client) && IsPlayerAlive(client) && g_bTiming[client])
+	if (IsPlayerIndex(client) && IsPlayerAlive(client) && g_Airtime[client].timing)
 	{
 		float vecOrigin[3];
 		GetClientAbsOrigin(client, vecOrigin);
@@ -2538,12 +2550,12 @@ public Action Timer_RepeatAirSound(Handle timer, any data)
 
 float FinishTimer(int client)
 {
-	float fFinishTime = GetEngineTime() - g_fStartTime[client];
+	float fFinishTime = GetEngineTime() - g_Airtime[client].starttime;
 	HaltTimer(client);
 
 	KillSpriteTrail(client);
 
-	StopTimer(g_hTimer_AirtimeSound[client]);
+	StopTimer(g_Airtime[client].airtimesound);
 	StopSoundSafeAll(client, "ambient/desert_wind.wav");
 
 	return fFinishTime;
@@ -2551,7 +2563,7 @@ float FinishTimer(int client)
 
 void HaltTimer(int client)
 {
-	g_bTiming[client] = false;
+	g_Airtime[client].timing = false;
 }
 
 void CreateSpriteTrail(int client)
@@ -2583,19 +2595,19 @@ void CreateSpriteTrail(int client)
 	AcceptEntityInput(entity, "SetParent", -1, -1);
 	AcceptEntityInput(entity, "showsprite", -1, -1);
 
-	g_iSpriteTrail[client] = EntIndexToEntRef(entity);
+	g_Airtime[client].spritetrail = EntIndexToEntRef(entity);
 }
 
 void KillSpriteTrail(int client)
 {
-	int entity = EntRefToEntIndex(g_iSpriteTrail[client]);
+	int entity = EntRefToEntIndex(g_Airtime[client].spritetrail);
 
 	if (IsValidEntity(entity))
 	{
 		AcceptEntityInput(entity, "Kill");
 	}
 
-	g_iSpriteTrail[client] = INVALID_ENT_REFERENCE;
+	g_Airtime[client].spritetrail = INVALID_ENT_REFERENCE;
 }
 
 void FormatPlayerTime(float Time, char[] result, int maxlength, bool showDash, int precision)
@@ -2649,8 +2661,8 @@ void OpenMainMenu(int client)
 	menu.AddItem("how", "How to Play");
 	menu.AddItem("credits", "Credits");
 	menu.AddItem("tutorial", "Start Tutorial Scenario");
-	AddMenuItemFormat(menu, "gender", ITEMDRAW_DEFAULT, "Toggle Gender [%s]", g_bIsFemale[client] ? "Female" : "Male");
-	AddMenuItemFormat(menu, "music", ITEMDRAW_DEFAULT, "Play Music [%s]", g_bPlayBackgroundMusic[client] ? "ON" : "OFF");
+	AddMenuItemFormat(menu, "gender", ITEMDRAW_DEFAULT, "Toggle Gender [%s]", g_Player[client].isfemale ? "Female" : "Male");
+	AddMenuItemFormat(menu, "music", ITEMDRAW_DEFAULT, "Play Music [%s]", g_Player[client].backgroundmusic ? "ON" : "OFF");
 
 	menu.Display(client, 30);
 }
@@ -2746,16 +2758,16 @@ public Action Command_ToggleGender(int client, int args)
 
 void ToggleGender(int client)
 {
-	g_bIsFemale[client] = !g_bIsFemale[client];
+	g_Player[client].isfemale = !g_Player[client].isfemale;
 
 	char sValue[12];
-	IntToString(g_bIsFemale[client], sValue, sizeof(sValue));
+	IntToString(g_Player[client].isfemale, sValue, sizeof(sValue));
 
 	SetClientCookie(client, g_hCookie_IsFemale, sValue);
-	CPrintToChat(client, "%s Gender swapped to %s.", PLUGIN_TAG_COLORED, g_bIsFemale[client] ? "Female" : "Male");
+	CPrintToChat(client, "%s Gender swapped to %s.", PLUGIN_TAG_COLORED, g_Player[client].isfemale ? "Female" : "Male");
 
 	char sAward[PLATFORM_MAX_PATH];
-	switch (g_bIsFemale[client])
+	switch (g_Player[client].isfemale)
 	{
 		case true:
 		{
@@ -3007,7 +3019,7 @@ public int MenuHandler_ResetAirtimeRecords(Menu menu, MenuAction action, int par
 					g_hDatabase.Format(sQuery, sizeof(sQuery), "UPDATE `hungry_heavy_delivery_records` SET record_airtime = '0.0' WHERE steamid = '%s' AND map = '%s';", sSteamID, sCurrentMap);
 					g_hDatabase.Query(onUpdateRecord, sQuery);
 
-					g_fCurrentAirtimeRecord[param1] = 0.0;
+					g_Airtime[param1].currentairtimerecord = 0.0;
 					CPrintToChat(param1, "%s You have reset your airtime record for this map successfully.", PLUGIN_TAG_COLORED);
 				}
 				else
@@ -3167,7 +3179,7 @@ public int MenuHandler_ResetDeliveryRecords(Menu menu, MenuAction action, int pa
 					g_hDatabase.Format(sQuery, sizeof(sQuery), "UPDATE `hungry_heavy_delivery_records` SET record_deliveries = '0' WHERE steamid = '%s' AND map = '%s';", sSteamID, sCurrentMap);
 					g_hDatabase.Query(onUpdateRecord2, sQuery);
 
-					g_iCurrentDeliveriesRecord[param1] = 0;
+					g_Airtime[param1].currentdeliveriesrecord = 0;
 					CPrintToChat(param1, "%s You have reset your delivery record for this map successfully.", PLUGIN_TAG_COLORED);
 				}
 				else
@@ -3213,11 +3225,11 @@ public Action Command_ToggleMusic(int client, int args)
 
 void ToggleMusic(int client)
 {
-	g_bPlayBackgroundMusic[client] = !g_bPlayBackgroundMusic[client];
-	SetClientCookie(client, g_hCookie_ToggleMusic, g_bPlayBackgroundMusic[client] ? "1" : "0");
-	CPrintToChat(client, "%s You have toggled music %s.", PLUGIN_TAG_COLORED, g_bPlayBackgroundMusic[client] ? "on" : "off");
+	g_Player[client].backgroundmusic = !g_Player[client].backgroundmusic;
+	SetClientCookie(client, g_hCookie_ToggleMusic, g_Player[client].backgroundmusic ? "1" : "0");
+	CPrintToChat(client, "%s You have toggled music %s.", PLUGIN_TAG_COLORED, g_Player[client].backgroundmusic ? "on" : "off");
 
-	if (g_bPlayBackgroundMusic[client]) PlayBackgroundMusic(client);
+	if (g_Player[client].backgroundmusic) PlayBackgroundMusic(client);
 	else StopBackgroundMusic(client);
 }
 
@@ -3234,7 +3246,7 @@ void OpenCurrentAirtimeRecords(int client)
 	float record; char sRecord[64];
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		record = g_fRoundAirtimeRecord[i];
+		record = g_Airtime[i].roundairtimerecord;
 
 		if (!IsClientInGame(i) || record <= 0.0)
 		{
@@ -3272,7 +3284,7 @@ void OpenCurrentDeliveryTimes(int client)
 	int record;
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		record = g_iRoundDeliveriesRecord[i];
+		record = g_Airtime[i].rounddeliveriesrecord;
 
 		if (!IsClientInGame(i) || record <= 0)
 		{
@@ -3311,22 +3323,22 @@ public Action Command_Tutorial(int client, int args)
 
 void StartTutorial(int client)
 {
-	g_iTutorialStep[client] = TUTORIAL_STEP_PISTOL;
-	g_iClimbAmount[client] = 0;
+	g_Tutorial[client].tutorialstep = TUTORIAL_STEP_PISTOL;
+	g_Tutorial[client].climbamount = 0;
 
 	LoadTutorialStep(client);
 }
 
 void ClearTutorial(int client)
 {
-	g_iTutorialStep[client] = TUTORIAL_STEP_NONE;
-	g_iClimbAmount[client] = 0;
-	StopTimer(g_hTutorialTimer[client]);
+	g_Tutorial[client].tutorialstep = TUTORIAL_STEP_NONE;
+	g_Tutorial[client].climbamount = 0;
+	StopTimer(g_Tutorial[client].tutorialtimer);
 }
 
 void LoadTutorialStep(int client)
 {
-	StopTimer(g_hTutorialTimer[client]);
+	StopTimer(g_Tutorial[client].tutorialtimer);
 
 	if (g_bBetweenRounds || g_bPlayersFrozen || g_bWaitingForPlayers)
 	{
@@ -3336,7 +3348,7 @@ void LoadTutorialStep(int client)
 
 	KillPizzaBackpack(client);
 
-	switch (g_iTutorialStep[client])
+	switch (g_Tutorial[client].tutorialstep)
 	{
 		case TUTORIAL_STEP_PISTOL:
 		{
@@ -3372,9 +3384,9 @@ void LoadTutorialStep(int client)
 			ClearTutorial(client);
 
 			SetClientCookie(client, g_hCookie_TutorialPlayed, "1");
-			g_bTutorialPlayed[client] = true;
+			g_Tutorial[client].tutorialplayed = true;
 
-			g_iFlashText[client] = 250;
+			g_Tutorial[client].flashtext = 250;
 		}
 	}
 
@@ -3386,7 +3398,7 @@ void LoadTutorialStep(int client)
 void OpenTutorialMenu(int client)
 {
 	Menu menu = new Menu(MenuHandler_TutorialMenu);
-	menu.SetTitle("Would you like to play the tutorial%s?", g_bTutorialPlayed[client] ? " again" : "");
+	menu.SetTitle("Would you like to play the tutorial%s?", g_Tutorial[client].tutorialplayed ? " again" : "");
 	menu.AddItem("yes", "Yes");
 	menu.AddItem("no", "No");
 	menu.Display(client, 15);
