@@ -344,6 +344,9 @@ public void OnConfigsExecuted()
 	{
 		for (int i = 1; i <= MaxClients; i++)
 		{
+			if (IsClientConnected(i))
+				OnClientConnected(i);
+			
 			if (!IsClientInGame(i))
 				continue;
 			
@@ -1614,7 +1617,7 @@ void SetSpawnFunctions(int client)
 		TF2Attrib_SetByName_Weapons(client, secondary, "clip size bonus", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 1.5 : 3.00);
 		TF2Attrib_SetByName_Weapons(client, secondary, "maxammo secondary increased", 5.0);
 		TF2Attrib_SetByName_Weapons(client, secondary, "faster reload rate", 1.50);
-		TF2Attrib_SetByName_Weapons(client, secondary, "fire rate penalty", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 30.0 : 5.00);
+		//TF2Attrib_SetByName_Weapons(client, secondary, "fire rate penalty", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 30.0 : 5.00);
 	}
 
 	g_Airtime[client].recordcache = false;
@@ -1734,7 +1737,7 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 			GetEntPropVector(client, Prop_Data, "m_vecVelocity", velo);
 
 			AnglesToVelocity(angles, GetVectorLength(velo), vecVelocity);
-			
+
 			g_Airtime[client].secondaryshots++;
 
 			if (g_Airtime[client].secondaryshots >= 3)
