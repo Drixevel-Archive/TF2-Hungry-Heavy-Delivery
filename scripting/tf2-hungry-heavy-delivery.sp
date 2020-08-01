@@ -92,6 +92,8 @@ Handle g_hMillisecondsTimer;
 
 enum struct Player
 {
+	int client;
+	
 	bool connected;
 	int triggerdelay;
 	bool isfemale;
@@ -107,6 +109,27 @@ enum struct Player
 
 	int totalpizzas;
 	int climbs;
+
+	void Init(int client)
+	{
+		this.client = client;
+
+		this.connected = false;
+		this.triggerdelay = -1;
+		this.isfemale = false;
+
+		this.backgroundmusic = false;
+		this.backgroundmusictimer = null;
+
+		this.supreme = false;
+
+		this.pizza = -1;
+		this.destination = -1;
+		this.laststop = -1;
+
+		this.totalpizzas = -1;
+		this.climbs = -1;
+	}
 }
 
 Player g_Player[MAXPLAYERS + 1];
@@ -164,7 +187,6 @@ Handle g_hSDKPickup;
 Handle g_hSync_Score;
 
 //Delivery Stops
-ArrayList g_hArray_Destinations;
 Handle g_hSync_Destination;
 
 //Beam tempent materials
@@ -227,7 +249,6 @@ public void OnPluginStart()
 
 	g_hArray_BackgroundMusic = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
 	g_hArray_BackgroundMusicSeconds = new ArrayList();
-	g_hArray_Destinations = new ArrayList();
 
 	HookEvent("player_spawn", Event_OnPlayerSpawn);
 	HookEvent("player_death", Event_OnPlayerDeath);
@@ -738,9 +759,9 @@ public Action Timer_TicksInMilliseconds(Handle timer)
 			sArrow[0] = '\0';
 			sRecord[0] = '\0';
 
-			if (g_Player[i].destination != INVALID_ENT_REFERENCE)
+			if (IsValidEntity(g_Player[i].destination))
 			{
-				entity = EntRefToEntIndex(g_Player[i].destination);
+				entity = g_Player[i].destination;
 
 				if (IsValidEntity(entity))
 				{
@@ -933,22 +954,14 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 
 void GetDeliveryDestinationName(int destination, char[] buffer, int size)
 {
-	if (destination == INVALID_ENT_REFERENCE)
-	{
-		strcopy(buffer, size, "None");
-		return;
-	}
-
-	int entity = EntRefToEntIndex(destination);
-
-	if (!IsValidEntity(entity))
+	if (!IsValidEntity(destination))
 	{
 		strcopy(buffer, size, "None");
 		return;
 	}
 
 	//Misleading AF
-	GetEntPropString(entity, Prop_Data, "m_iParent", buffer, size);
+	GetEntPropString(destination, Prop_Data, "m_iParent", buffer, size);
 }
 
 int GetGameWinner()
@@ -983,9 +996,14 @@ int GetGameWinner()
 void ResetReferenceData(int client)
 {
 	g_Player[client].pizza = INVALID_ENT_REFERENCE;
-	g_Player[client].destination = INVALID_ENT_REFERENCE;
+	g_Player[client].destination = -1;
 	g_Player[client].laststop = INVALID_ENT_REFERENCE;
 	g_Airtime[client].spritetrail = INVALID_ENT_REFERENCE;
+}
+
+public void OnClientConnected(int client)
+{
+	g_Player[client].Init(client);
 }
 
 public void OnClientPutInServer(int client)
@@ -1203,9 +1221,9 @@ public void OnGameFrame()
 			TE_SendToAll();
 		}
 
-		if (g_Player[i].destination != INVALID_ENT_REFERENCE)
+		if (IsValidEntity(g_Player[i].destination))
 		{
-			destination = EntRefToEntIndex(g_Player[i].destination);
+			destination = g_Player[i].destination;
 
 			if (IsValidEntity(destination))
 			{
@@ -1560,8 +1578,6 @@ public void OnTriggerSpawnPost(int entity)
 	{
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaDelivery);
 
-		g_hArray_Destinations.Push(EntIndexToEntRef(entity));
-
 		float vecGround[3];
 		GetEntGroundCoordinates(entity, vecGround);
 		CreateParticle("npc_boss_bomb_aoewarn", vecGround, 0.0);
@@ -1587,7 +1603,6 @@ public void Event_OnTeamplayRoundWin(Event event, const char[] name, bool dontBr
 {
 	g_bBetweenRounds = true;
 	g_bPlayersFrozen = false;
-	g_hArray_Destinations.Clear();
 
 	for (int i = 0; i < sizeof(g_bMutations); i++)
 	{
@@ -2205,11 +2220,9 @@ public void OnPizzaPickup(int entity, int other)
 	else
 	{
 		//Safety check to pick a destination if they have a pizza bag but no destination for some reason.
-		if (g_Player[client].destination == INVALID_ENT_REFERENCE)
-		{
+		if (!IsValidEntity(g_Player[client].destination))
 			PickDestination(client);
-		}
-
+		
 		FormatEx(sSound, sizeof(sSound), "vo/heavy_no0%i.mp3", GetRandomInt(1, 3));
 		EmitSoundToClientSafe(client, sSound);
 	}
@@ -2229,7 +2242,7 @@ void PickDestination(int client)
 
 			if (StrEqual(sName, "pizza_delivery_1", false) || StrEqual(sName, "pizza_delivery_01", false))
 			{
-				g_Player[client].destination = EntIndexToEntRef(entity);
+				g_Player[client].destination = entity;
 				break;
 			}
 		}
@@ -2237,19 +2250,24 @@ void PickDestination(int client)
 		return;
 	}
 
-	int delivery = g_hArray_Destinations.Get(GetRandomInt(0, g_hArray_Destinations.Length - 1));
+	int destinations[128];
+	int total;
 
-	//We make sure that the delivery stop that it's picking isn't the one we have cached already.
-	//If this is their first stop then it will be invalid so it'll pull only once compared to the default value.
-	if (g_Player[client].laststop != INVALID_ENT_REFERENCE)
+	int entity = -1; char sName[64];
+	while ((entity = FindEntityByClassname(entity, "trigger_multiple")) != -1)
 	{
-		while (delivery == g_Player[client].laststop)
-		{
-			delivery = g_hArray_Destinations.Get(GetRandomInt(0, g_hArray_Destinations.Length - 1));
-		}
+		GetEntPropString(entity, Prop_Data, "m_iName", sName, sizeof(sName));
+
+		if (StrContains(sName, "pizza_delivery", false) != 0)
+			continue;
+		
+		if (g_Player[client].laststop == entity)
+			continue;
+		
+		destinations[total++] = entity;
 	}
 
-	g_Player[client].destination = delivery;
+	g_Player[client].destination = destinations[GetRandomInt(0, total - 1)];
 }
 
 bool GivePizzaBackpack(int client, bool kill = false)
@@ -2330,7 +2348,7 @@ void KillPizzaBackpack(int client)
 	g_Player[client].pizza = INVALID_ENT_REFERENCE;
 
 	//If we kill their pizza bag for some reason, there's no place to go anyways.
-	g_Player[client].destination = INVALID_ENT_REFERENCE;
+	g_Player[client].destination = -1;
 }
 
 bool HasPizzaBackpack(int client)
@@ -2353,7 +2371,7 @@ public void OnPizzaDelivery(int entity, int other)
 		g_Player[client].triggerdelay = time + 3;
 	}
 
-	if (!HasPizzaBackpack(client) || g_Player[client].destination == INVALID_ENT_REFERENCE || g_Player[client].destination != EntIndexToEntRef(entity))
+	if (!HasPizzaBackpack(client) || g_Player[client].destination == -1 || g_Player[client].destination != entity)
 	{
 		return;
 	}
