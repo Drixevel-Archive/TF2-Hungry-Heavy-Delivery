@@ -30,10 +30,10 @@ TODO LIST:
 #define GAMEMODE_TYPE_RESETONDEATH 4
 #define GAMEMODE_TYPE_BUNNYHOPPING 5
 
-#define MUTATIONS 2
-#define MUTATION_NONE -1
-#define MUTATION_DOUBLEVELOCITY 0
-#define MUTATION_SUPREMEPIZZAS 1
+#define MUTATION_NONE 0
+#define MUTATION_DOUBLEVELOCITY 1
+#define MUTATION_SUPREMEPIZZAS 2
+#define MUTATIONS_TOTAL 3
 
 #define OVERLAY_TUTORIAL_01 "overlays/HHD/tutorial_01"
 #define OVERLAY_TUTORIAL_02 "overlays/HHD/tutorial_02"
@@ -93,7 +93,7 @@ Handle g_hMillisecondsTimer;
 enum struct Player
 {
 	int client;
-	
+
 	bool connected;
 	int triggerdelay;
 	bool isfemale;
@@ -167,8 +167,8 @@ enum struct Tutorial
 Tutorial g_Tutorial[MAXPLAYERS + 1];
 
 //Background Music
-ArrayList g_hArray_BackgroundMusic;
-ArrayList g_hArray_BackgroundMusicSeconds;
+ArrayList g_BackgroundMusic;
+ArrayList g_BackgroundMusicSeconds;
 
 //Gamemode Rules
 int g_iGamemodeType;
@@ -176,7 +176,7 @@ int g_iQueuedGamemode;
 Handle g_hSync_Mode;
 
 //Mutations
-bool g_bMutations[MUTATIONS];	//Mutations are random gameplay elements.
+bool g_bMutations[MUTATIONS_TOTAL];	//Mutations are random gameplay elements.
 
 //Timer
 int g_iRemainingTime;
@@ -247,8 +247,8 @@ public void OnPluginStart()
 	RegAdminCmd("sm_setmutations", Command_SetMutations, ADMFLAG_SLAY, "Toggle any mutations for the current round.");
 	RegAdminCmd("sm_endgame", Command_EndGame, ADMFLAG_SLAY, "Ends the current round.");
 
-	g_hArray_BackgroundMusic = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
-	g_hArray_BackgroundMusicSeconds = new ArrayList();
+	g_BackgroundMusic = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
+	g_BackgroundMusicSeconds = new ArrayList();
 
 	HookEvent("player_spawn", Event_OnPlayerSpawn);
 	HookEvent("player_death", Event_OnPlayerDeath);
@@ -310,34 +310,29 @@ public void OnPluginStart()
 		delete hConf;
 	}
 	else
-	{
 		LogError("Error parsing file: hhd.gamedata.txt");
-	}
-
+	
 	//It'd probably be better to setup code to get the seconds of a track automatically instead of caching that as well but I have yet to find a method that doesn't crash.
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_electric_tooth_brush.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(256.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_everybody_jump_around.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(249.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_funky_radio.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(207.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_jet_grind_radio.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(250.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_moodys_shuffle.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(78.8);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_ok_house.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(318.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_sneakman.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(233.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_super_brothers.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(179.0);
-	g_hArray_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_thats_enough.mp3");
-	g_hArray_BackgroundMusicSeconds.Push(225.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_electric_tooth_brush.mp3");
+	g_BackgroundMusicSeconds.Push(256.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_everybody_jump_around.mp3");
+	g_BackgroundMusicSeconds.Push(249.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_funky_radio.mp3");
+	g_BackgroundMusicSeconds.Push(207.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_jet_grind_radio.mp3");
+	g_BackgroundMusicSeconds.Push(250.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_moodys_shuffle.mp3");
+	g_BackgroundMusicSeconds.Push(78.8);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_ok_house.mp3");
+	g_BackgroundMusicSeconds.Push(318.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_sneakman.mp3");
+	g_BackgroundMusicSeconds.Push(233.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_super_brothers.mp3");
+	g_BackgroundMusicSeconds.Push(179.0);
+	g_BackgroundMusic.PushString("hungryheavydelivery/music/jsr_thats_enough.mp3");
+	g_BackgroundMusicSeconds.Push(225.0);
 
-	if (g_hDatabase == null)
-	{
-		Database.Connect(OnSQLConnect, "default");
-	}
+	Database.Connect(OnSQLConnect, "default");
 }
 
 public void OnConfigsExecuted()
@@ -349,28 +344,22 @@ public void OnConfigsExecuted()
 	{
 		for (int i = 1; i <= MaxClients; i++)
 		{
-			if (IsClientInGame(i))
-			{
-				OnClientPutInServer(i);
+			if (!IsClientInGame(i))
+				continue;
+			
+			OnClientPutInServer(i);
 
-				if (IsPlayerAlive(i))
-				{
-					SetSpawnFunctions(i);
-				}
-			}
+			if (IsPlayerAlive(i))
+				SetSpawnFunctions(i);
 
 			if (AreClientCookiesCached(i))
-			{
 				OnClientCookiesCached(i);
-			}
 		}
 
-		int entity = INVALID_ENT_INDEX; char classname[64];
-		while ((entity = FindEntityByClassname(entity, "*")) != INVALID_ENT_INDEX)
-		{
-			GetEntityClassname(entity, classname, sizeof(classname));
-			OnEntityCreated(entity, classname);
-		}
+		int entity = -1; char classname[64];
+		while ((entity = FindEntityByClassname(entity, "*")) != -1)
+			if (GetEntityClassname(entity, classname, sizeof(classname)))
+				OnEntityCreated(entity, classname);
 
 		g_bLate = false;
 	}
@@ -380,12 +369,6 @@ public void OnSQLConnect(Database db, const char[] error, any data)
 {
 	if (db == null)
 		ThrowError("Error connecting to database: %s", error);
-
-	if (g_hDatabase != null)
-	{
-		delete db;
-		return;
-	}
 
 	g_hDatabase = db;
 	LogMessage("Connected to database successfully.");
@@ -449,9 +432,9 @@ public void OnMapStart()
 
 	//Background Music
 	char sMusic[PLATFORM_MAX_PATH];
-	for (int i = 0; i < g_hArray_BackgroundMusic.Length; i++)
+	for (int i = 0; i < g_BackgroundMusic.Length; i++)
 	{
-		g_hArray_BackgroundMusic.GetString(i, sMusic, sizeof(sMusic));
+		g_BackgroundMusic.GetString(i, sMusic, sizeof(sMusic));
 		PrecacheSound(sMusic);
 		Format(sMusic, sizeof(sMusic), "sound/%s", sMusic);
 		AddFileToDownloadsTable(sMusic);
@@ -534,10 +517,8 @@ public void OnMapStart()
 		while (dir.GetNext(sFile, sizeof(sFile), type))
 		{
 			if (StrEqual(sFile, ".") || StrEqual(sFile, "..") || type == FileType_Directory)
-			{
 				continue;
-			}
-
+			
 			TrimString(sFile);
 
 			Format(sFile, sizeof(sFile), "vo/female_scout/%s", sFile);
@@ -550,20 +531,16 @@ public void OnMapStart()
 		delete dir;
 	}
 	else
-	{
-		PrintToServer("dir not found");
-	}
+		LogError("Directory not found: sound/vo/female_scout/");
 
-	dir = OpenDirectory("sound/vo/female_scout/taunts", true);
+	dir = OpenDirectory("sound/vo/female_scout/taunts/", true);
 
 	if (dir != null)
 	{
 		while (dir.GetNext(sFile, sizeof(sFile), type))
 		{
 			if (StrEqual(sFile, ".") || StrEqual(sFile, "..") || type == FileType_Directory)
-			{
 				continue;
-			}
 
 			TrimString(sFile);
 
@@ -576,6 +553,8 @@ public void OnMapStart()
 
 		delete dir;
 	}
+	else
+		LogError("Directory not found: sound/vo/female_scout/taunts/");
 }
 
 void PrecacheDecalAnyDownload(char[] sOverlay)
@@ -607,9 +586,7 @@ public Action OnSoundPlay(int clients[MAXPLAYERS], int &numClients, char sample[
 {
 	//They aren't picking up the intel, no need for this.
 	if (StrContains(sample, "vo/intel_") != -1)
-	{
 		return Plugin_Stop;
-	}
 
 	if (IsPlayerIndex(entity) && StrContains(sample, "vo/scout_") == 0 && g_Player[entity].isfemale)
 	{
@@ -628,25 +605,23 @@ public void OnPluginEnd()
 {
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i))
-		{
-			KillPizzaBackpack(i);
-			ClearSyncHud(i, g_hSync_Mode);
-			ClearSyncHud(i, g_hSync_RemainingTime);
-			ClearSyncHud(i, g_hSync_Score);
-			ClearSyncHud(i, g_hSync_Destination);
-			StopBackgroundMusic(i);
-			ClearOverlay(i);
-		}
+		if (!IsClientInGame(i))
+			continue;
+		
+		KillPizzaBackpack(i);
+		ClearSyncHud(i, g_hSync_Mode);
+		ClearSyncHud(i, g_hSync_RemainingTime);
+		ClearSyncHud(i, g_hSync_Score);
+		ClearSyncHud(i, g_hSync_Destination);
+		StopBackgroundMusic(i);
+		ClearOverlay(i);
 	}
 }
 
 public Action Timer_TicksInSeconds(Handle timer)
 {
 	if (g_bBetweenRounds || g_bWaitingForPlayers)
-	{
 		return Plugin_Continue;
-	}
 
 	char sTime[32]; char sRecord[64]; float speed;
 	for (int i = 1; i <= MaxClients; i++)
@@ -665,9 +640,7 @@ public Action Timer_TicksInSeconds(Handle timer)
 			}
 
 			if (g_Airtime[i].currentairtimerecord > 0.0)
-			{
 				FormatEx(sRecord, sizeof(sRecord), " | Airtime Record: %.2f", g_Airtime[i].currentairtimerecord);
-			}
 
 			PrintHintText(i, "Speed: %.2f%s%s", speed, sRecord, strlen(sTime) > 0 ? sTime : "");
 			StopSound(i, SNDCHAN_STATIC, "UI/hint.wav");
@@ -710,21 +683,13 @@ public Action Timer_TicksInSeconds(Handle timer)
 	if (g_iGamemodeType == GAMEMODE_TYPE_TEAMS)
 	{
 		if (g_iRemainingTime == 300)
-		{
 			EmitSoundToAllSafe("vo/announcer_ends_5min.mp3");
-		}
 		else if (g_iRemainingTime == 120)
-		{
 			EmitSoundToAllSafe("vo/announcer_ends_2min.mp3");
-		}
 		else if (g_iRemainingTime == 60)
-		{
 			EmitSoundToAllSafe("vo/announcer_ends_60sec.mp3");
-		}
 		else if (g_iRemainingTime == 30)
-		{
 			EmitSoundToAllSafe("vo/announcer_ends_30sec.mp3");
-		}
 		else if (g_iRemainingTime <= 10)
 		{
 			char sSound[PLATFORM_MAX_PATH];
@@ -739,9 +704,7 @@ public Action Timer_TicksInSeconds(Handle timer)
 public Action Timer_TicksInMilliseconds(Handle timer)
 {
 	if (g_bBetweenRounds || g_bWaitingForPlayers)
-	{
 		return Plugin_Continue;
-	}
 
 	char sGamemode[64]; char sTime[32]; char sDestination[64]; char sArrow[12]; char sRecord[32];
 	int entity; float vecOrigin[3]; float vecAngles[3]; float destOrigin[3];
@@ -788,17 +751,13 @@ public Action Timer_TicksInMilliseconds(Handle timer)
 			ShowSyncHudText(i, g_hSync_Destination, "Destination: %s %s", sDestination, sArrow);
 
 			if (g_Airtime[i].currentdeliveriesrecord > 0)
-			{
 				FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_Airtime[i].currentdeliveriesrecord);
-			}
 
 			SetHudTextParams(0.01, 0.16, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_Score, "Deliveries: %i%s", g_Player[i].totalpizzas, sRecord);
 
 			if (g_Tutorial[i].flashtext > 0)
-			{
 				g_Tutorial[i].flashtext--;
-			}
 		}
 	}
 
@@ -821,21 +780,15 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 
 	// Correct it
 	if (diff < -180)
-	{
 		diff = 360 + diff;
-	}
 
 	if (diff > 180)
-	{
 		diff = 360 - diff;
-	}
 
 	// Now geht the direction
 	// Up
 	if (diff >= -22.5 && diff < 22.5)
-	{
 		Format(buffer, size, " [ \xe2\x86\x91 ]");
-	}
 
 	// right up
 	else if (diff >= 22.5 && diff < 67.5)
@@ -849,9 +802,7 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 			EmitSoundToClientSafe(client, sRight);
 
 			if (GetRandomInt(0, 10) > 5)
-			{
 				SpeakResponseConcept(client, "TLK_KILLED_PLAYER", "domination:revenge", "heavy");
-			}
 		}
 	}
 
@@ -867,9 +818,7 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 			EmitSoundToClientSafe(client, sRight);
 
 			if (GetRandomInt(0, 10) > 5)
-			{
 				SpeakResponseConcept(client, "TLK_KILLED_PLAYER", "domination:revenge", "heavy");
-			}
 		}
 	}
 
@@ -885,17 +834,13 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 			EmitSoundToClientSafe(client, sRight);
 
 			if (GetRandomInt(0, 10) > 5)
-			{
 				SpeakResponseConcept(client, "TLK_KILLED_PLAYER", "domination:revenge", "heavy");
-			}
 		}
 	}
 
 	// down
 	else if (diff >= 157.5 || diff < -157.5)
-	{
 		Format(buffer, size, " [ \xe2\x86\x93 ]");
-	}
 
 	// down left
 	else if (diff >= -157.5 && diff < -112.5)
@@ -909,9 +854,7 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 			EmitSoundToClientSafe(client, sRight);
 
 			if (GetRandomInt(0, 10) > 5)
-			{
 				SpeakResponseConcept(client, "TLK_KILLED_PLAYER", "domination:revenge", "heavy");
-			}
 		}
 	}
 
@@ -927,9 +870,7 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 			EmitSoundToClientSafe(client, sRight);
 
 			if (GetRandomInt(0, 10) > 5)
-			{
 				SpeakResponseConcept(client, "TLK_KILLED_PLAYER", "domination:revenge", "heavy");
-			}
 		}
 	}
 
@@ -945,9 +886,7 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 			EmitSoundToClientSafe(client, sRight);
 
 			if (GetRandomInt(0, 10) > 5)
-			{
 				SpeakResponseConcept(client, "TLK_KILLED_PLAYER", "domination:revenge", "heavy");
-			}
 		}
 	}
 }
@@ -973,9 +912,7 @@ int GetGameWinner()
 		if (IsClientInGame(i))
 		{
 			if (g_Player[i].totalpizzas< 1)
-			{
 				continue;
-			}
 
 			if (winner == -1)
 			{
@@ -984,9 +921,7 @@ int GetGameWinner()
 			}
 
 			if (g_Player[i].totalpizzas > g_Player[winner].totalpizzas)
-			{
 				winner = i;
-			}
 		}
 	}
 
@@ -1009,9 +944,7 @@ public void OnClientConnected(int client)
 public void OnClientPutInServer(int client)
 {
 	if (IsFakeClient(client))
-	{
 		return;
-	}
 
 	g_Player[client].connected = true;
 	g_Player[client].triggerdelay = -1;
@@ -1044,17 +977,13 @@ public void OnClientPutInServer(int client)
 public void OnClientCookiesCached(int client)
 {
 	if (IsFakeClient(client))
-	{
 		return;
-	}
 
 	char sValue[12];
 	GetClientCookie(client, g_hCookie_ToggleMusic, sValue, sizeof(sValue));
 
 	if (strlen(sValue) > 0)
-	{
 		g_Player[client].backgroundmusic = StringToBool(sValue);
-	}
 	else
 	{
 		g_Player[client].backgroundmusic = true;
@@ -1065,9 +994,7 @@ public void OnClientCookiesCached(int client)
 	GetClientCookie(client, g_hCookie_Tutorial, sValue, sizeof(sValue));
 
 	if (strlen(sValue) > 0)
-	{
 		g_Tutorial[client].showtutorialmenu = StringToBool(sValue);
-	}
 	else
 	{
 		g_Tutorial[client].showtutorialmenu = true;
@@ -1078,9 +1005,7 @@ public void OnClientCookiesCached(int client)
 	GetClientCookie(client, g_hCookie_TutorialPlayed, sValue, sizeof(sValue));
 
 	if (strlen(sValue) == 0)
-	{
 		g_Tutorial[client].tutorialplayed = StringToBool(sValue);
-	}
 	else
 	{
 		g_Tutorial[client].tutorialplayed = true;
@@ -1131,9 +1056,7 @@ public void TQuery_OnGetRecord(Database db, DBResultSet results, const char[] er
 public void OnClientDisconnect(int client)
 {
 	if (IsFakeClient(client))
-	{
 		return;
-	}
 
 	g_Player[client].connected = false;
 	g_Player[client].triggerdelay = -1;
@@ -1170,9 +1093,7 @@ public void OnClientDisconnect(int client)
 public Action OnPlayerSpawn(int entity)
 {
 	if (g_iGamemodeType == GAMEMODE_TYPE_ELIMINATION && !g_bPlayersFrozen)
-	{
 		return Plugin_Stop;
-	}
 
 	return Plugin_Continue;
 }
@@ -1181,9 +1102,7 @@ public Action OnPlayerSpawn(int entity)
 public Action OnSetTransmit(int client, int entity)
 {
 	if (IsPlayerIndex(client) && IsPlayerAlive(client) && entity != client && g_Tutorial[entity].tutorialstep > TUTORIAL_STEP_NONE)
-	{
 		return Plugin_Stop;
-	}
 
 	return Plugin_Continue;
 }
@@ -1207,9 +1126,7 @@ public void OnGameFrame()
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i))
-		{
 			continue;
-		}
 
 		//The rings being in the players face is a problem and this is an easy fix for that.
 		//GetClientAbsPosition(i, vecOrigin); vecOrigin[2] += 10.0;
@@ -1234,9 +1151,7 @@ public void OnGameFrame()
 
 		//This can 100% be done a better way but this is quick and easy.
 		if (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING)
-		{
 			SetEntProp(i, Prop_Send, "m_iAirDash", 3);
-		}
 	}
 }
 
@@ -1245,9 +1160,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
 	if (!IsPlayerIndex(client) || !IsPlayerAlive(client))
-	{
 		return;
-	}
 
 	if (g_Player[client].connected)
 	{
@@ -1260,9 +1173,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 			OpenTutorialMenu(client);
 		}
 		else
-		{
 			OpenMainMenu(client);
-		}
 	}
 
 	g_Player[client].triggerdelay = -1;
@@ -1273,9 +1184,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	PlayBackgroundMusic(client);
 
 	if (g_Player[client].isfemale)
-	{
 		SetModel(client, "models/player/scout_female.mdl");
-	}
 
 	g_Player[client].supreme = false;
 
@@ -1287,10 +1196,8 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
 	if (!IsPlayerIndex(client))
-	{
 		return;
-	}
-
+	
 	switch (g_iGamemodeType)
 	{
 		case GAMEMODE_TYPE_RESETONDEATH:
@@ -1314,9 +1221,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	ClearTutorial(client);
 
 	if (g_Airtime[client].timing)
-	{
 		EmitSoundToClientSafeDelayed(client, "coach/coach_student_died.wav", 1.0);
-	}
 }
 
 public void Frame_CheckLiveCount(any data)
@@ -1333,9 +1238,7 @@ public void Event_OnResupply(Event event, const char[] name, bool dontBroadcast)
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
 	if (!IsPlayerIndex(client))
-	{
 		return;
-	}
 
 	SetSpawnFunctions(client);
 }
@@ -1375,9 +1278,7 @@ public void Event_OnTeamplayRoundStart(Event event, const char[] name, bool dont
 	PrintCenterTextAll("Gamemode: %s", sGamemode);
 
 	if (g_iGamemodeType == GAMEMODE_TYPE_TEAMS)
-	{
 		EmitSoundToAllSafeDelayed("vo/announcer_you_must_not_fail_this_time.mp3", 3.0);
-	}
 
 	//Set the remaining time for this round.
 	g_iRemainingTime = convar_Default_Time.IntValue;
@@ -1391,9 +1292,7 @@ public void Event_OnTeamplayRoundStart(Event event, const char[] name, bool dont
 		g_Airtime[i].rounddeliveriesrecord = 0;
 
 		if (IsClientConnected(i))
-		{
 			ClearOverlay(i);
-		}
 
 		ClearTutorial(i);
 	}
@@ -1488,15 +1387,13 @@ public void Event_OnTeamplayRoundActive(Event event, const char[] name, bool don
 		if (g_bMutations[i])
 		{
 			GetMutationName(i, sMutation, sizeof(sMutation));
-			Format(sMutationsList, sizeof(sMutationsList), "%s%s %s", sMutationsList, (i == 0) ? "" : ",", sMutation);
+			Format(sMutationsList, sizeof(sMutationsList), "%s%s %s", sMutationsList, (strlen(sMutationsList) == 0) ? "" : ",", sMutation);
 			show = true;
 		}
 	}
 
 	if (show)
-	{
 		CPrintToChatAll("%s %s", PLUGIN_TAG_COLORED, sMutationsList);
-	}
 
 	//Tell people they can be faster moveable boys.
 	if (g_bMutations[MUTATION_DOUBLEVELOCITY])
@@ -1511,7 +1408,6 @@ public void Event_OnTeamplayRoundActive(Event event, const char[] name, bool don
 		char sCompleted[PLATFORM_MAX_PATH];
 		FormatEx(sCompleted, sizeof(sCompleted), "vo/heavy_specialcompleted%02d.mp3", GetRandomInt(1, 11));
 		EmitSoundToAllSafeDelayed(sCompleted, 2.0);
-
 		SpeakResponseConceptAllDelayed("TLK_MVM_ENCOURAGE_MONEY", 3.0);
 	}
 }
@@ -1521,7 +1417,10 @@ public void OnEntityCreated(int entity, const char[] classname)
 	if (StrEqual(classname, "tf_dropped_weapon"))
 		SDKHook(entity, SDKHook_Spawn, OnDroppedWeaponSpawn);
 	else if (StrEqual(classname, "prop_dynamic"))
+	{
 		SDKHook(entity, SDKHook_Spawn, OnDynamicPropSpawn);
+		SDKHook(entity, SDKHook_SpawnPost, OnDynamicPropSpawnPost);
+	}
 	else if (StrEqual(classname, "trigger_multiple"))
 		SDKHook(entity, SDKHook_SpawnPost, OnTriggerSpawnPost);
 }
@@ -1543,7 +1442,10 @@ public Action OnDynamicPropSpawn(int entity)
 	//optional fixes
 	DispatchKeyValue(entity, "DisableCollision", "1");
 	DispatchKeyValue(entity, "PerformanceMode", "1");
+}
 
+public void OnDynamicPropSpawnPost(int entity)
+{
 	char sName[64];
 	GetEntPropString(entity, Prop_Data, "m_iName", sName, sizeof(sName));
 
@@ -1574,7 +1476,8 @@ public void OnTriggerSpawnPost(int entity)
 		Effect_DrawRangedBeamBox(vecOrigin, vecStart, vecEnd, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.0, 2.0, 2.0, 1, 0.0, {255, 255, 255, 120}, 0);
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaPickup);
 	}
-	else if (StrContains(sName, "pizza_delivery") != -1)
+
+	if (StrContains(sName, "pizza_delivery") != -1)
 	{
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaDelivery);
 
@@ -1591,12 +1494,8 @@ public void OnTriggerSpawnPost(int entity)
 public void Event_OnTeamplayWaitingEnds(Event event, const char[] name, bool dontBroadcast)
 {
 	for (int i = 1; i <= MaxClients; i++)
-	{
 		if (g_Airtime[i].timing)
-		{
 			FinishTimer(i);
-		}
-	}
 }
 
 public void Event_OnTeamplayRoundWin(Event event, const char[] name, bool dontBroadcast)
@@ -1605,21 +1504,15 @@ public void Event_OnTeamplayRoundWin(Event event, const char[] name, bool dontBr
 	g_bPlayersFrozen = false;
 
 	for (int i = 0; i < sizeof(g_bMutations); i++)
-	{
 		g_bMutations[i] = false;
-	}
 
 	int end_panel = GetRandomInt(0, 1);
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (end_panel == 0)
-		{
 			OpenCurrentAirtimeRecords(i);
-		}
 		else
-		{
 			OpenCurrentDeliveryTimes(i);
-		}
 
 		ClearTutorial(i);
 
@@ -1654,17 +1547,15 @@ public Action Event_OnTeamplayFlagEvent(Event event, const char[] name, bool don
 	SetEventBroadcast(event, true);
 
 	//This event doesn't have the flag entity itself, we have to find it and kill it.
-	if (event.GetInt("eventtype") == 4)
-	{
-		int entity = -1;
-		while ((entity = FindEntityByClassname(entity, "item_teamflag")) != -1)
-		{
-			if (GetEntProp(entity, Prop_Send, "m_nFlagStatus") == TF_FLAGINFO_DROPPED)
-			{
-				AcceptEntityInput(entity, "Kill");
-			}
-		}
-	}
+	if (event.GetInt("eventtype") != 4)
+		return Plugin_Continue;
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "item_teamflag")) != -1)
+		if (GetEntProp(entity, Prop_Send, "m_nFlagStatus") == TF_FLAGINFO_DROPPED)
+			AcceptEntityInput(entity, "Kill");
+	
+	return Plugin_Continue;
 }
 
 void SetSpawnFunctions(int client)
@@ -1675,54 +1566,56 @@ void SetSpawnFunctions(int client)
 		TF2_RegeneratePlayer(client);
 	}
 
-	int wep_equip;
+	int weapon;
 
 	if (wep_primary != null)
 	{
 		TF2_RemoveWeaponSlot(client, 0);
-		wep_equip = TF2Items_GiveNamedItem(client, wep_primary);
+		weapon = TF2Items_GiveNamedItem(client, wep_primary);
 
-		if (IsValidEntity(wep_equip))
-		{
-			EquipPlayerWeapon(client, wep_equip);
-		}
+		if (IsValidEntity(weapon))
+			EquipPlayerWeapon(client, weapon);
 	}
 
 	if (wep_secondary != null)
 	{
 		TF2_RemoveWeaponSlot(client, 1);
-		wep_equip = TF2Items_GiveNamedItem(client, wep_secondary);
+		weapon = TF2Items_GiveNamedItem(client, wep_secondary);
 
-		if (IsValidEntity(wep_equip))
-		{
-			EquipPlayerWeapon(client, wep_equip);
-		}
+		if (IsValidEntity(weapon))
+			EquipPlayerWeapon(client, weapon);
 	}
 
 	if (wep_melee != null)
 	{
 		TF2_RemoveWeaponSlot(client, 2);
-		wep_equip = TF2Items_GiveNamedItem(client, wep_melee);
+		weapon = TF2Items_GiveNamedItem(client, wep_melee);
 
-		if (IsValidEntity(wep_equip))
-		{
-			EquipPlayerWeapon(client, wep_equip);
-		}
+		if (IsValidEntity(weapon))
+			EquipPlayerWeapon(client, weapon);
 	}
 
 	TF2Attrib_ApplyMoveSpeedBonus(client, 3.0);
 
 	int primary = GetPlayerWeaponSlot(client, 0);
-	TF2Attrib_SetByName_Weapons(client, primary, "clip size bonus", 1.50);
-	TF2Attrib_SetByName_Weapons(client, primary, "maxammo primary increased", 4.0);
-	TF2Attrib_SetByName_Weapons(client, primary, "faster reload rate", 0.75);
-	TF2Attrib_SetByName_Weapons(client, primary, "scattergun has knockback", 0.0);
+
+	if (IsValidEntity(primary))
+	{
+		TF2Attrib_SetByName_Weapons(client, primary, "clip size bonus", 1.50);
+		TF2Attrib_SetByName_Weapons(client, primary, "maxammo primary increased", 4.0);
+		TF2Attrib_SetByName_Weapons(client, primary, "faster reload rate", 0.75);
+		TF2Attrib_SetByName_Weapons(client, primary, "scattergun has knockback", 0.0);
+	}
 
 	int secondary = GetPlayerWeaponSlot(client, 1);
-	TF2Attrib_SetByName_Weapons(client, secondary, "clip size bonus", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 1.5 : 3.00);
-	TF2Attrib_SetByName_Weapons(client, secondary, "maxammo secondary increased", 5.0);
-	TF2Attrib_SetByName_Weapons(client, secondary, "faster reload rate", 1.50);
-	TF2Attrib_SetByName_Weapons(client, secondary, "fire rate penalty", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 30.0 : 5.00);
+
+	if (IsValidEntity(secondary))
+	{
+		TF2Attrib_SetByName_Weapons(client, secondary, "clip size bonus", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 1.5 : 3.00);
+		TF2Attrib_SetByName_Weapons(client, secondary, "maxammo secondary increased", 5.0);
+		TF2Attrib_SetByName_Weapons(client, secondary, "faster reload rate", 1.50);
+		TF2Attrib_SetByName_Weapons(client, secondary, "fire rate penalty", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 30.0 : 5.00);
+	}
 
 	g_Airtime[client].recordcache = false;
 	g_Player[client].climbs = 0;
@@ -1731,19 +1624,17 @@ void SetSpawnFunctions(int client)
 void PlayBackgroundMusic(int client)
 {
 	if (!g_Player[client].backgroundmusic || g_Player[client].backgroundmusictimer != null)
-	{
 		return;
-	}
 
-	int index = GetRandomInt(0, g_hArray_BackgroundMusic.Length - 1);
+	int index = GetRandomInt(0, g_BackgroundMusic.Length - 1);
 
 	char sMusic[PLATFORM_MAX_PATH];
-	g_hArray_BackgroundMusic.GetString(index, sMusic, sizeof(sMusic));
+	g_BackgroundMusic.GetString(index, sMusic, sizeof(sMusic));
 
 	EmitSoundToClientSafe(client, sMusic, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.5);
 
 	StopTimer(g_Player[client].backgroundmusictimer);
-	g_Player[client].backgroundmusictimer = CreateTimer(g_hArray_BackgroundMusicSeconds.Get(index), Timer_NextSong, client, TIMER_FLAG_NO_MAPCHANGE);
+	g_Player[client].backgroundmusictimer = CreateTimer(g_BackgroundMusicSeconds.Get(index), Timer_NextSong, client, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action Timer_NextSong(Handle timer, any data)
@@ -1758,9 +1649,9 @@ void StopBackgroundMusic(int client)
 	StopTimer(g_Player[client].backgroundmusictimer);
 
 	char sMusic[PLATFORM_MAX_PATH];
-	for (int i = 0; i < g_hArray_BackgroundMusic.Length; i++)
+	for (int i = 0; i < g_BackgroundMusic.Length; i++)
 	{
-		g_hArray_BackgroundMusic.GetString(i, sMusic, sizeof(sMusic));
+		g_BackgroundMusic.GetString(i, sMusic, sizeof(sMusic));
 		StopSound(client, SNDCHAN_AUTO, sMusic);
 	}
 }
@@ -1770,9 +1661,7 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 {
 	//Players shouldn't be flying out of the gate automatically.
 	if (g_bPlayersFrozen)
-	{
 		return Plugin_Continue;
-	}
 
 	int slot = GetActiveWeaponSlot(client);
 
@@ -1886,19 +1775,13 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 		TeleportEntity(client, vecOrigin, NULL_VECTOR, vecVelocity);
 
 		if (meleevault)
-		{
 			EmitSoundToClientSafe(client, "weapons/airstrike_fire_01.wav");
-		}
 
 		if (g_Airtime[client].timing && GetRandomFloat(0.0, 1.0) > 0.7)
-		{
 			SpeakResponseConceptDelayed(client, "TLK_PLAYER_GO", 0.3);
-		}
 
 		if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE && g_Tutorial[client].tutorialtimer == null)
-		{
 			g_Tutorial[client].tutorialtimer = CreateTimer(5.0, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-		}
 	}
 
 	return Plugin_Continue;
@@ -1915,9 +1798,7 @@ void AttemptWallClimb(int client)
 	TR_TraceRayFilter(vecEyePos, vecEyeAngles, MASK_PLAYERSOLID, RayType_Infinite, TraceRayDontHitSelf, client);
 
 	if (!TR_DidHit(null))
-	{
 		return;
-	}
 
 	int entity = TR_GetEntityIndex();
 
@@ -1925,18 +1806,14 @@ void AttemptWallClimb(int client)
 	GetEntityClassname(entity, sClassname, sizeof(sClassname));
 
 	if (!StrEqual(sClassname, "worldspawn"))
-	{
 		return;
-	}
 
 	float vecNormal[3];
 	TR_GetPlaneNormal(null, vecNormal);
 	GetVectorAngles(vecNormal, vecNormal);
 
 	if ((vecNormal[0] >= 30.0 && vecNormal[0] <= 330.0) || (vecNormal[0] <= -30.0))
-	{
 		return;
-	}
 
 	float vecPos[3];
 	TR_GetEndPosition(vecPos);
@@ -1944,9 +1821,7 @@ void AttemptWallClimb(int client)
 	float distance = GetVectorDistance(vecEyePos, vecPos);
 
 	if (distance >= 80.0)
-	{
 		return;
-	}
 
 	float vecVelocity[3];
 	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVelocity);
@@ -1967,9 +1842,7 @@ void AttemptWallClimb(int client)
 			g_Tutorial[client].climbamount = -1;
 
 			if (g_Tutorial[client].tutorialtimer == null)
-			{
 				g_Tutorial[client].tutorialtimer = CreateTimer(3.0, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-			}
 		}
 		else
 		{
@@ -1993,9 +1866,7 @@ public Action Timer_NextTutorialStep(Handle timer, any data)
 	int client = GetClientOfUserId(data);
 
 	if (!IsPlayerIndex(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
-	{
 		return Plugin_Stop;
-	}
 
 	g_Tutorial[client].tutorialtimer = null;
 	g_Tutorial[client].tutorialstep++;
@@ -2013,9 +1884,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	}
 
 	if (GetEntityFlags(client) & FL_ONGROUND)
-	{
 		g_Player[client].climbs = 0;
-	}
 
 	if (g_bWaitingForPlayers || g_bBetweenRounds || g_bPlayersFrozen)
 	{
@@ -2024,9 +1893,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	}
 
 	if (g_Tutorial[client].tutorialstep == TUTORIAL_STEP_DELIVERY && !IsClientNearEntityViaName(client, "tutorial_delivery_point", "info_teleport_destination", 500.0))
-	{
 		TeleportToDestination(client, "tutorial_delivery_point");
-	}
 
 	if ((g_Tutorial[client].tutorialstep >= TUTORIAL_STEP_PISTOL && g_Tutorial[client].tutorialstep <= TUTORIAL_STEP_FAN))
 	{
@@ -2055,23 +1922,17 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		g_Airtime[client].offgrounddelay++;
 
 		if (g_Airtime[client].offgrounddelay < 200)
-		{
 			return Plugin_Continue;
-		}
-
+		
 		StartTimer(client);
 	}
 	else
-	{
 		g_Airtime[client].offgrounddelay = 0;
-	}
 
 	float speed = GetPlayerSpeed(client);
 
 	if (g_Airtime[client].timing && speed > g_Airtime[client].topspeed)
-	{
 		g_Airtime[client].topspeed = speed;
-	}
 
 	float vecOrigin[3];
 	GetClientAbsOrigin(client, vecOrigin);
@@ -2082,9 +1943,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		bool new_record;
 
 		if (finished > g_Airtime[client].roundairtimerecord)
-		{
 			g_Airtime[client].roundairtimerecord = finished;
-		}
 
 		if (finished > g_Airtime[client].currentairtimerecord)
 		{
@@ -2135,9 +1994,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				chosen--;
 
 				if (chosen < 1)
-				{
 					chosen = 5;
-				}
 			}
 
 			g_Airtime[client].lastpositivemessage = chosen;
@@ -2155,9 +2012,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				chosen--;
 
 				if (chosen < 1)
-				{
 					chosen = 5;
-				}
 			}
 
 			g_Airtime[client].lastnegativemessage = chosen;
@@ -2166,9 +2021,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			FormatEx(sNegative, sizeof(sNegative), "vo/heavy_negativevocalization0%i.mp3", chosen);
 
 			if (GetRandomInt(0, 5) > 2)
-			{
 				EmitSoundToClientSafe(client, sNegative);
-			}
 		}
 	}
 
@@ -2185,17 +2038,13 @@ public void onInsertRecord2(Database db, DBResultSet results, const char[] error
 public void OnPizzaPickup(int entity, int other)
 {
 	if (g_bBetweenRounds || g_bWaitingForPlayers)
-	{
 		return;
-	}
 
 	int time = GetTime();
 	int client = other;
 
 	if (!IsPlayerIndex(client) || (g_Player[client].triggerdelay > -1 && g_Player[client].triggerdelay > time))
-	{
 		return;
-	}
 
 	g_Player[client].triggerdelay = time + 3;
 
@@ -2211,9 +2060,7 @@ public void OnPizzaPickup(int entity, int other)
 		EquipWeaponSlot(client, slot);
 
 		if (g_Player[client].laststop != INVALID_ENT_REFERENCE && GetRandomFloat(0.0, 1.0) > 0.60)
-		{
 			SpeakResponseConceptDelayed(client, "TLK_TIRED", 0.4);
-		}
 
 		PickDestination(client);
 	}
@@ -2276,13 +2123,9 @@ bool GivePizzaBackpack(int client, bool kill = false)
 	if (HasPizzaBackpack(client))
 	{
 		if (kill)
-		{
 			KillPizzaBackpack(client);
-		}
 		else
-		{
 			return false;
-		}
 	}
 
 	//Originally, this was meant to be a simple prop_dynamic entity parented to the player with the 'flag' attachment but the pizza model wouldn't show up that way due to engine limitations Valve put into place. This is fine though as It adds a glow to the pack automatically and I can even make it spin a lot easier as well.
@@ -2303,9 +2146,7 @@ bool GivePizzaBackpack(int client, bool kill = false)
 
 		//Force the client to pick up the item_teamflag entity with the pizza bag model.
 		if (g_hSDKPickup != null)
-		{
 			SDKCall(g_hSDKPickup, entity, client, true);
-		}
 
 		//SPINNY SPINNY
 		SetVariantString("spin");
@@ -2334,16 +2175,12 @@ void KillPizzaBackpack(int client)
 {
 	//Client doesn't have pizza currently.
 	if (!HasPizzaBackpack(client))
-	{
 		return;
-	}
 
 	int pizzapack = EntRefToEntIndex(g_Player[client].pizza);
 
 	if (IsValidEntity(pizzapack))
-	{
 		AcceptEntityInput(pizzapack, "Kill");
-	}
 
 	g_Player[client].pizza = INVALID_ENT_REFERENCE;
 
@@ -2362,19 +2199,13 @@ public void OnPizzaDelivery(int entity, int other)
 	int client = other;
 
 	if (!IsPlayerIndex(client) || (g_Tutorial[client].tutorialstep != TUTORIAL_STEP_DELIVERY && g_Player[client].triggerdelay > -1 && g_Player[client].triggerdelay > time))
-	{
 		return;
-	}
 
 	if (g_Tutorial[client].tutorialstep == TUTORIAL_STEP_DELIVERY)
-	{
 		g_Player[client].triggerdelay = time + 3;
-	}
 
 	if (!HasPizzaBackpack(client) || g_Player[client].destination == -1 || g_Player[client].destination != entity)
-	{
 		return;
-	}
 
 	KillPizzaBackpack(client);
 
@@ -2435,9 +2266,7 @@ public void OnPizzaDelivery(int entity, int other)
 	SpeakResponseConceptDelayed(client, "TLK_ACCEPT_DUEL", 1.0);
 
 	if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE && g_Tutorial[client].tutorialtimer == null)
-	{
 		g_Tutorial[client].tutorialtimer = CreateTimer(2.5, Timer_NextTutorialStep, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-	}
 
 	if (g_iGamemodeType == GAMEMODE_TYPE_TEAMS)
 	{
@@ -2456,14 +2285,12 @@ void SendAnnouncerTeamMessage()
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || g_Player[i].totalpizzas < 1)
-		{
 			continue;
-		}
 
 		switch (TF2_GetClientTeam(i))
 		{
-			case TFTeam_Red:	pizzas_red += g_Player[i].totalpizzas;
-			case TFTeam_Blue:	pizzas_blue += g_Player[i].totalpizzas;
+			case TFTeam_Red: pizzas_red += g_Player[i].totalpizzas;
+			case TFTeam_Blue: pizzas_blue += g_Player[i].totalpizzas;
 		}
 	}
 
@@ -2478,25 +2305,17 @@ void SendAnnouncerTeamMessage()
 	TFTeam lead;
 
 	if (pizzas_red > pizzas_blue)
-	{
 		lead = TFTeam_Red;
-	}
 	else if (pizzas_red < pizzas_blue)
-	{
 		lead = TFTeam_Blue;
-	}
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i))
-		{
 			continue;
-		}
 
 		if (GetRandomInt(0, 5) > 3)
-		{
 			continue;
-		}
 
 		if (lead == TF2_GetClientTeam(i))
 		{
@@ -2514,9 +2333,7 @@ void SendAnnouncerTeamMessage()
 void SetHudScore(int client, int score, bool updatehud = true)
 {
 	if (!IsPlayerIndex(client))
-	{
 		return;
-	}
 
 	g_Player[client].totalpizzas = ClampCell(score, 0, 99999);
 
@@ -2526,9 +2343,7 @@ void SetHudScore(int client, int score, bool updatehud = true)
 		char sRecord[32];
 
 		if (g_Airtime[client].currentdeliveriesrecord > 0)
-		{
 			FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_Airtime[client].currentdeliveriesrecord);
-		}
 
 		SetHudTextParams(0.01, 0.3, 99999.0, 91, 255, 51, 225, g_Tutorial[client].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 		ShowSyncHudText(client, g_hSync_Score, "Deliveries: %i%s", g_Player[client].totalpizzas, sRecord);
@@ -2539,9 +2354,7 @@ void SetHudScore(int client, int score, bool updatehud = true)
 void StartTimer(int client)
 {
 	if (g_Tutorial[client].tutorialstep > TUTORIAL_STEP_NONE)
-	{
 		return;
-	}
 
 	g_Airtime[client].starttime = GetEngineTime();
 	g_Airtime[client].timing = true;
@@ -2621,16 +2434,14 @@ void KillSpriteTrail(int client)
 	int entity = EntRefToEntIndex(g_Airtime[client].spritetrail);
 
 	if (IsValidEntity(entity))
-	{
 		AcceptEntityInput(entity, "Kill");
-	}
 
 	g_Airtime[client].spritetrail = INVALID_ENT_REFERENCE;
 }
 
 void FormatPlayerTime(float Time, char[] result, int maxlength, bool showDash, int precision)
 {
-	if(Time <= 0.0 && showDash == true)
+	if (Time <= 0.0 && showDash == true)
 	{
 		Format(result, maxlength, "-");
 		return;
@@ -2645,26 +2456,24 @@ void FormatPlayerTime(float Time, char[] result, int maxlength, bool showDash, i
 	char sPrecision[16];
 
 	if(precision == 0)
-	Format(sPrecision, sizeof(sPrecision), (hours > 0 || minutes > 0)?"%04.1f":"%.1f", seconds);
+		Format(sPrecision, sizeof(sPrecision), (hours > 0 || minutes > 0)?"%04.1f":"%.1f", seconds);
 	else if(precision == 1)
-	Format(sPrecision, sizeof(sPrecision), (hours > 0 || minutes > 0)?"%06.3f":"%.3f", seconds);
+		Format(sPrecision, sizeof(sPrecision), (hours > 0 || minutes > 0)?"%06.3f":"%.3f", seconds);
 	else if(precision == 2)
-	Format(sPrecision, sizeof(sPrecision), (hours > 0 || minutes > 0)?"%09.6f":"%.6f", seconds);
+		Format(sPrecision, sizeof(sPrecision), (hours > 0 || minutes > 0)?"%09.6f":"%.6f", seconds);
 
 	if(hours > 0)
-	Format(result, maxlength, "%d:%02d:%s", hours, minutes, sPrecision);
+		Format(result, maxlength, "%d:%02d:%s", hours, minutes, sPrecision);
 	else if(minutes > 0)
-	Format(result, maxlength, "%d:%s", minutes, sPrecision);
+		Format(result, maxlength, "%d:%s", minutes, sPrecision);
 	else
-	Format(result, maxlength, "%s", sPrecision);
+		Format(result, maxlength, "%s", sPrecision);
 }
 
 public Action Command_MainMenu(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	OpenMainMenu(client);
 	return Plugin_Handled;
@@ -2695,21 +2504,13 @@ public int MenuHandler_MainMenu(Menu menu, MenuAction action, int param1, int pa
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "records"))
-			{
 				OpenRecordsMenu(param1);
-			}
 			else if (StrEqual(sInfo, "how"))
-			{
 				OpenHowToMenu(param1);
-			}
 			else if (StrEqual(sInfo, "credits"))
-			{
 				OpenCreditsPanel(param1);
-			}
 			else if (StrEqual(sInfo, "tutorial"))
-			{
 				OpenTutorialMenu(param1);
-			}
 			else if (StrEqual(sInfo, "gender"))
 			{
 				ToggleGender(param1);
@@ -2723,9 +2524,7 @@ public int MenuHandler_MainMenu(Menu menu, MenuAction action, int param1, int pa
 		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
@@ -2766,9 +2565,7 @@ public void TF2_OnWaitingForPlayersEnd()
 public Action Command_ToggleGender(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	ToggleGender(client);
 	return Plugin_Handled;
@@ -2805,9 +2602,7 @@ void ToggleGender(int client)
 public Action Command_ShowCredits(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	OpenCreditsPanel(client, false);
 	return Plugin_Handled;
@@ -2828,7 +2623,10 @@ void OpenCreditsPanel(int client, bool back = true)
 	panel.DrawText(" - TF2Maps/GameBanana (Misc Map Contents)");
 	panel.DrawText(" - Cole Zaveri (Testing)");
 	panel.DrawText(" - Barren Reality (Testing)");
-	if (back) panel.DrawItem("Back");
+	
+	if (back)
+		panel.DrawItem("Back");
+	
 	panel.Send(client, MenuHandler_Credits, 30);
 
 	char sThanks[PLATFORM_MAX_PATH];
@@ -2838,16 +2636,20 @@ void OpenCreditsPanel(int client, bool back = true)
 
 public int MenuHandler_Credits(Menu menu, MenuAction action, int param1, int param2)
 {
-	if (param2 == 1) OpenMainMenu(param1);
-	delete menu;
+	switch (action)
+	{
+		case MenuAction_Select:
+			if (param2 == 1)
+				OpenMainMenu(param1);
+		case MenuAction_End:
+			delete menu;
+	}
 }
 
 public Action Command_Records(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	OpenRecordsMenu(client, false);
 	return Plugin_Handled;
@@ -2877,44 +2679,28 @@ public int MenuHandler_Records(Menu menu, MenuAction action, int param1, int par
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "top_airtime"))
-			{
 				OpenTopAirtimes(param1);
-			}
 			else if (StrEqual(sInfo, "top_deliveries"))
-			{
 				OpenTopDeliveries(param1);
-			}
 			else if (StrEqual(sInfo, "reset_airtime"))
-			{
 				ResetAirtimeRecord(param1);
-			}
 			else if (StrEqual(sInfo, "reset_deliveries"))
-			{
 				ResetDeliveryRecord(param1);
-			}
 		}
 
 		case MenuAction_Cancel:
-		{
 			if (param2 == MenuCancel_ExitBack)
-			{
 				OpenMainMenu(param1);
-			}
-		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
 public Action Command_TopAirtimes(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	OpenTopAirtimes(client);
 	return Plugin_Handled;
@@ -2930,17 +2716,12 @@ void OpenTopAirtimes(int client)
 public void TQuery_OnShowTopAirtimes(Database owner, DBResultSet hndl, const char[] error, any data)
 {
 	if (hndl == null)
-	{
-		LogError("Error retrieving top airtime records for map '%s': %s", sCurrentMap, error);
-		return;
-	}
+		ThrowError("Error retrieving top airtime records for map '%s': %s", sCurrentMap, error);
 
-	int client = GetClientOfUserId(data);
+	int client;
 
-	if (!IsPlayerIndex(client))
-	{
+	if ((client = GetClientOfUserId(data)) == 0)
 		return;
-	}
 
 	Menu menu = new Menu(MenuHandler_TopAirtimes);
 	menu.SetTitle("Top Airtimes for '%s':", sCurrentMap);
@@ -2952,18 +2733,14 @@ public void TQuery_OnShowTopAirtimes(Database owner, DBResultSet hndl, const cha
 		record = hndl.FetchFloat(1);
 
 		if (strlen(sName) == 0 || record <= 0.0)
-		{
 			continue;
-		}
 
 		FormatPlayerTime(record, sRecord, sizeof(sRecord), true, 1);
 		AddMenuItemFormat(menu, "", ITEMDRAW_DISABLED, "%s: %s", sName, sRecord);
 	}
 
 	if (GetMenuItemCount(menu) == 0)
-	{
 		menu.AddItem("", "[No Times Recorded]", ITEMDRAW_DISABLED);
-	}
 
 	menu.ExitBackButton = true;
 	menu.Display(client, 30);
@@ -2978,31 +2755,21 @@ public int MenuHandler_TopAirtimes(Menu menu, MenuAction action, int param1, int
 	switch (action)
 	{
 		case MenuAction_Select:
-		{
 			OpenMainMenu(param1);
-		}
 
 		case MenuAction_Cancel:
-		{
 			if (param2 == MenuCancel_ExitBack)
-			{
 				OpenRecordsMenu(param1, menu.ExitBackButton);
-			}
-		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
 public Action Command_ResetAirtimeRecord(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	ResetAirtimeRecord(client);
 	return Plugin_Handled;
@@ -3041,26 +2808,18 @@ public int MenuHandler_ResetAirtimeRecords(Menu menu, MenuAction action, int par
 					CPrintToChat(param1, "%s You have reset your airtime record for this map successfully.", PLUGIN_TAG_COLORED);
 				}
 				else
-				{
 					CPrintToChat(param1, "%s Failure resetting your airtime record, please try again soon.", PLUGIN_TAG_COLORED);
-				}
 			}
 
 			OpenMainMenu(param1);
 		}
 
 		case MenuAction_Cancel:
-		{
 			if (param2 == MenuCancel_ExitBack)
-			{
 				OpenRecordsMenu(param1, menu.ExitBackButton);
-			}
-		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
@@ -3073,9 +2832,7 @@ public void onUpdateRecord(Database db, DBResultSet results, const char[] error,
 public Action Command_TopDeliveries(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	OpenTopDeliveries(client);
 	return Plugin_Handled;
@@ -3091,17 +2848,11 @@ void OpenTopDeliveries(int client)
 public void TQuery_OnShowTopDeliveries(Database owner, DBResultSet hndl, const char[] error, any data)
 {
 	if (hndl == null)
-	{
-		LogError("Error retrieving top delivery records for map '%s': %s", sCurrentMap, error);
-		return;
-	}
+		ThrowError("Error retrieving top delivery records for map '%s': %s", sCurrentMap, error);
 
-	int client = GetClientOfUserId(data);
-
-	if (!IsPlayerIndex(client))
-	{
+	int client;
+	if ((client = GetClientOfUserId(data)) == 0)
 		return;
-	}
 
 	Menu menu = new Menu(MenuHandler_TopDeliveryTimes);
 	menu.SetTitle("Top Deliveries for '%s':", sCurrentMap);
@@ -3113,17 +2864,13 @@ public void TQuery_OnShowTopDeliveries(Database owner, DBResultSet hndl, const c
 		record = hndl.FetchInt(1);
 
 		if (strlen(sName) == 0 || record <= 0)
-		{
 			continue;
-		}
 
 		AddMenuItemFormat(menu, "", ITEMDRAW_DISABLED, "%s: %i", sName, record);
 	}
 
 	if (menu.ItemCount == 0)
-	{
 		menu.AddItem("", "[No Amounts Recorded]", ITEMDRAW_DISABLED);
-	}
 
 	menu.ExitBackButton = true;
 	menu.Display(client, 30);
@@ -3138,31 +2885,21 @@ public int MenuHandler_TopDeliveryTimes(Menu menu, MenuAction action, int param1
 	switch (action)
 	{
 		case MenuAction_Select:
-		{
 			OpenMainMenu(param1);
-		}
 
 		case MenuAction_Cancel:
-		{
 			if (param2 == MenuCancel_ExitBack)
-			{
 				OpenRecordsMenu(param1, menu.ExitBackButton);
-			}
-		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
 public Action Command_ResetDeliveryRecord(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	ResetDeliveryRecord(client);
 	return Plugin_Handled;
@@ -3201,26 +2938,18 @@ public int MenuHandler_ResetDeliveryRecords(Menu menu, MenuAction action, int pa
 					CPrintToChat(param1, "%s You have reset your delivery record for this map successfully.", PLUGIN_TAG_COLORED);
 				}
 				else
-				{
 					CPrintToChat(param1, "%s Failure resetting your delivery record, please try again soon.", PLUGIN_TAG_COLORED);
-				}
 			}
 
 			OpenMainMenu(param1);
 		}
 
 		case MenuAction_Cancel:
-		{
 			if (param2 == MenuCancel_ExitBack)
-			{
 				OpenRecordsMenu(param1, menu.ExitBackButton);
-			}
-		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
@@ -3233,9 +2962,7 @@ public void onUpdateRecord2(Database db, DBResultSet results, const char[] error
 public Action Command_ToggleMusic(int client, int args)
 {
 	if (client == 0)
-	{
 		return Plugin_Handled;
-	}
 
 	ToggleMusic(client);
 	return Plugin_Handled;
@@ -3254,9 +2981,7 @@ void ToggleMusic(int client)
 void OpenCurrentAirtimeRecords(int client)
 {
 	if (!IsClientInGame(client) || IsFakeClient(client))
-	{
 		return;
-	}
 
 	Menu menu = new Menu(MenuHandler_CurrentTimes);
 	menu.SetTitle("Airtime records for this round:");
@@ -3267,9 +2992,7 @@ void OpenCurrentAirtimeRecords(int client)
 		record = g_Airtime[i].roundairtimerecord;
 
 		if (!IsClientInGame(i) || record <= 0.0)
-		{
 			continue;
-		}
 
 		FormatPlayerTime(record, sRecord, sizeof(sRecord), true, 1);
 		AddMenuItemFormat(menu, "", ITEMDRAW_DISABLED, "%N: %s", i, sRecord);
@@ -3283,18 +3006,14 @@ public int MenuHandler_CurrentTimes(Menu menu, MenuAction action, int param1, in
 	switch (action)
 	{
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
 void OpenCurrentDeliveryTimes(int client)
 {
 	if (!IsClientInGame(client) || IsFakeClient(client))
-	{
 		return;
-	}
 
 	Menu menu = new Menu(MenuHandler_CurrentDeliveryRecords);
 	menu.SetTitle("Delivery records for this round:");
@@ -3305,9 +3024,7 @@ void OpenCurrentDeliveryTimes(int client)
 		record = g_Airtime[i].rounddeliveriesrecord;
 
 		if (!IsClientInGame(i) || record <= 0)
-		{
 			continue;
-		}
 
 		AddMenuItemFormat(menu, "", ITEMDRAW_DISABLED, "%N: %i", i, record);
 	}
@@ -3320,9 +3037,7 @@ public int MenuHandler_CurrentDeliveryRecords(Menu menu, MenuAction action, int 
 	switch (action)
 	{
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
@@ -3335,7 +3050,6 @@ public Action Command_Tutorial(int client, int args)
 	}
 
 	OpenTutorialMenu(client);
-
 	return Plugin_Handled;
 }
 
@@ -3432,15 +3146,11 @@ public int MenuHandler_TutorialMenu(Menu menu, MenuAction action, int param1, in
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "yes"))
-			{
 				StartTutorial(param1);
-			}
 		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
@@ -3530,9 +3240,7 @@ public int MenuHandler_SetGamemode(Menu menu, MenuAction action, int param1, int
 		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
@@ -3549,16 +3257,16 @@ public Action Command_SetMutations(int client, int args)
 		{
 			mutation = StringToInt(sMutation);
 
-			if (mutation < 0 || mutation > MUTATIONS)
+			if (mutation < 0 || mutation > MUTATIONS_TOTAL)
 			{
-				CReplyToCommand(client, "%s You cannot specify a mutation ID below zero or above %i.", PLUGIN_TAG, MUTATIONS);
+				CReplyToCommand(client, "%s You cannot specify a mutation ID below zero or above %i.", PLUGIN_TAG, MUTATIONS_TOTAL);
 				return Plugin_Handled;
 			}
 		}
 		else
 		{
 			char sMutationList[64];
-			for (int i = 1; i <= MUTATIONS; i++)
+			for (int i = 1; i <= MUTATIONS_TOTAL; i++)
 			{
 				GetMutationName(i, sMutationList, sizeof(sMutationList));
 
@@ -3625,9 +3333,7 @@ public int MenuHandler_ToggleMutation(Menu menu, MenuAction action, int param1, 
 		}
 
 		case MenuAction_End:
-		{
 			delete menu;
-		}
 	}
 }
 
