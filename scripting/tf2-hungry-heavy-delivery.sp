@@ -67,8 +67,8 @@ TODO LIST:
 ConVar convar_Default_Time;
 ConVar convar_Velocity_Primary;
 ConVar convar_Velocity_Primary_Double;
-ConVar convar_Velocity_Secondary;
-ConVar convar_Velocity_Secondary_Double;
+//ConVar convar_Velocity_Secondary;
+//ConVar convar_Velocity_Secondary_Double;
 ConVar convar_Velocity_Melee;
 ConVar convar_Velocity_Melee_Double;
 ConVar convar_Velocity_Melee_Climb;
@@ -220,8 +220,8 @@ public void OnPluginStart()
 	convar_Default_Time = CreateConVar("sm_hhd_default_time", "300");
 	convar_Velocity_Primary = CreateConVar("sm_hhd_primary_vel", "3250");
 	convar_Velocity_Primary_Double = CreateConVar("sm_hhd_primary_vel_double", "3500");
-	convar_Velocity_Secondary = CreateConVar("sm_hhd_secondary_vel", "1750");
-	convar_Velocity_Secondary_Double = CreateConVar("sm_hhd_secondary_vel_double", "1500");
+	//convar_Velocity_Secondary = CreateConVar("sm_hhd_secondary_vel", "1750");
+	//convar_Velocity_Secondary_Double = CreateConVar("sm_hhd_secondary_vel_double", "1500");
 	convar_Velocity_Melee = CreateConVar("sm_hhd_melee_vel", "1750.0");
 	convar_Velocity_Melee_Double = CreateConVar("sm_hhd_melee_vel_double", "1500.0");
 	convar_Velocity_Melee_Climb = CreateConVar("sm_hhd_melee_vel_climb", "4000.0");
@@ -1727,9 +1727,14 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 		}
 		case 1:
 		{
-			AnglesToVelocity(vecAngles, (g_bMutations[MUTATION_DOUBLEVELOCITY] ? convar_Velocity_Secondary_Double.FloatValue : convar_Velocity_Secondary.FloatValue), vecVelocity);
-			vecOrigin[2] += bIsOnGround ? 25.0 : 0.0;
+			float angles[3];
+			GetClientAbsAngles(client, angles);
 
+			float velo[3];
+			GetEntPropVector(client, Prop_Data, "m_vecVelocity", velo);
+
+			AnglesToVelocity(angles, GetVectorLength(velo), vecVelocity);
+			
 			g_Airtime[client].secondaryshots++;
 
 			if (g_Airtime[client].secondaryshots >= 3)
