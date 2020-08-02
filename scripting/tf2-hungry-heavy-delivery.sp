@@ -743,20 +743,17 @@ public Action Timer_TicksInMilliseconds(Handle timer)
 			}
 
 			GetGamemodeName(g_iGamemodeType, sGamemode, sizeof(sGamemode));
-			SetHudTextParams(0.01, 0.07, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			SetHudTextParams(0.01, 0.03, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_Mode, "Mode: %s", sGamemode);
 
-			SetHudTextParams(0.01, 0.1, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
-			ShowSyncHudText(i, g_hSync_RemainingTime, "On the Clock: %02d:%02d", g_iRemainingTime / 60, g_iRemainingTime % 60);
-
 			GetDeliveryDestinationName(g_Player[i].destination, sDestination, sizeof(sDestination));
-			SetHudTextParams(0.01, 0.13, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			SetHudTextParams(0.01, 0.06, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_Destination, "Destination: %s %s", sDestination, sArrow);
 
 			if (g_Airtime[i].currentdeliveriesrecord > 0)
 				FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_Airtime[i].currentdeliveriesrecord);
 
-			SetHudTextParams(0.01, 0.16, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+			SetHudTextParams(0.01, 0.09, 99999.0, 91, 255, 51, 225, g_Tutorial[i].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 			ShowSyncHudText(i, g_hSync_Score, "Deliveries: %i%s", g_Player[i].totalpizzas, sRecord);
 
 			if (g_Tutorial[i].flashtext > 0)
@@ -1285,6 +1282,7 @@ public void Event_OnTeamplayRoundStart(Event event, const char[] name, bool dont
 
 	//Set the remaining time for this round.
 	g_iRemainingTime = convar_Default_Time.IntValue;
+	CreateTF2Timer(g_iRemainingTime);
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -2353,7 +2351,7 @@ void SetHudScore(int client, int score, bool updatehud = true)
 		if (g_Airtime[client].currentdeliveriesrecord > 0)
 			FormatEx(sRecord, sizeof(sRecord), " [Record: %i]", g_Airtime[client].currentdeliveriesrecord);
 
-		SetHudTextParams(0.01, 0.3, 99999.0, 91, 255, 51, 225, g_Tutorial[client].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
+		SetHudTextParams(0.01, 0.09, 99999.0, 91, 255, 51, 225, g_Tutorial[client].flashtext > 0 ? 2 : 0, 1.0, 0.0, 0.0);
 		ShowSyncHudText(client, g_hSync_Score, "Deliveries: %i%s", g_Player[client].totalpizzas, sRecord);
 	}
 }
@@ -3350,4 +3348,45 @@ public Action Command_EndGame(int client, int args)
 	TF2_ForceWin(TFTeam_Unassigned);
 	CPrintToChatAll("%s %N has ended the round!", PLUGIN_TAG_COLORED, client);
 	return Plugin_Handled;
+}
+
+stock void CreateTF2Timer(int timer)
+{
+	int entity = FindEntityByClassname(-1, "team_round_timer");
+
+	if (!IsValidEntity(entity))
+		entity = CreateEntityByName("team_round_timer");
+
+	char sTime[32];
+	IntToString(timer, sTime, sizeof(sTime));
+	
+	DispatchKeyValue(entity, "reset_time", "1");
+	DispatchKeyValue(entity, "auto_countdown", "0");
+	DispatchKeyValue(entity, "timer_length", sTime);
+	DispatchSpawn(entity);
+
+	AcceptEntityInput(entity, "Resume");
+
+	SetVariantInt(1);
+	AcceptEntityInput(entity, "ShowInHUD");
+}
+
+stock void PauseTF2Timer()
+{
+	int entity = FindEntityByClassname(-1, "team_round_timer");
+
+	if (!IsValidEntity(entity))
+		entity = CreateEntityByName("team_round_timer");
+	
+	AcceptEntityInput(entity, "Pause");
+}
+
+stock void UnpauseTF2Timer()
+{
+	int entity = FindEntityByClassname(-1, "team_round_timer");
+
+	if (!IsValidEntity(entity))
+		entity = CreateEntityByName("team_round_timer");
+	
+	AcceptEntityInput(entity, "Resume");
 }
