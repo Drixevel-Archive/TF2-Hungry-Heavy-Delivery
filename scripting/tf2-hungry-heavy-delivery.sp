@@ -30,10 +30,9 @@ TODO LIST:
 #define GAMEMODE_TYPE_RESETONDEATH 4
 #define GAMEMODE_TYPE_BUNNYHOPPING 5
 
-#define MUTATION_NONE 0
-#define MUTATION_DOUBLEVELOCITY 1
-#define MUTATION_SUPREMEPIZZAS 2
-#define MUTATIONS_TOTAL 3
+#define MUTATION_DOUBLEVELOCITY 0
+#define MUTATION_SUPREMEPIZZAS 1
+#define MUTATIONS_TOTAL 2
 
 #define OVERLAY_TUTORIAL_01 "overlays/HHD/tutorial_01"
 #define OVERLAY_TUTORIAL_02 "overlays/HHD/tutorial_02"
@@ -159,7 +158,6 @@ enum struct Tutorial
 	int tutorialstep;
 	int climbamount;
 	Handle tutorialtimer;
-	bool showtutorialmenu;
 	bool tutorialplayed;
 	int flashtext;
 }
@@ -969,7 +967,6 @@ public void OnClientPutInServer(int client)
 	g_Tutorial[client].tutorialstep = TUTORIAL_STEP_NONE;
 	g_Tutorial[client].climbamount = 0;
 	StopTimer(g_Tutorial[client].tutorialtimer);
-	g_Tutorial[client].showtutorialmenu = true;
 	g_Tutorial[client].tutorialplayed = false;
 
 	g_Player[client].isfemale = false;
@@ -1001,13 +998,8 @@ public void OnClientCookiesCached(int client)
 	sValue[0] = '\0';
 	GetClientCookie(client, g_hCookie_Tutorial, sValue, sizeof(sValue));
 
-	if (strlen(sValue) > 0)
-		g_Tutorial[client].showtutorialmenu = StringToBool(sValue);
-	else
-	{
-		g_Tutorial[client].showtutorialmenu = true;
+	if (strlen(sValue) == 0)
 		SetClientCookie(client, g_hCookie_Tutorial, "1");
-	}
 
 	sValue[0] = '\0';
 	GetClientCookie(client, g_hCookie_TutorialPlayed, sValue, sizeof(sValue));
@@ -1087,7 +1079,6 @@ public void OnClientDisconnect(int client)
 	g_Tutorial[client].tutorialstep = TUTORIAL_STEP_NONE;
 	g_Tutorial[client].climbamount = 0;
 	StopTimer(g_Tutorial[client].tutorialtimer);
-	g_Tutorial[client].showtutorialmenu = true;
 	g_Tutorial[client].tutorialplayed = false;
 
 	g_Player[client].isfemale = false;
@@ -1173,9 +1164,11 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	{
 		g_Player[client].connected = false;
 
-		if (g_Tutorial[client].showtutorialmenu)
+		char sCookie[16];
+		GetClientCookie(client, g_hCookie_Tutorial, sCookie, sizeof(sCookie));
+
+		if (StrEqual(sCookie, "1", false))
 		{
-			g_Tutorial[client].showtutorialmenu = false;
 			SetClientCookie(client, g_hCookie_Tutorial, "0");
 			OpenTutorialMenu(client);
 		}
@@ -1383,25 +1376,17 @@ public void Event_OnTeamplayRoundActive(Event event, const char[] name, bool don
 
 	EmitSoundToAllSafe("coach/coach_go_here.wav");
 
-	char sMutationsList[255];
-	FormatEx(sMutationsList, sizeof(sMutationsList), "Mutations:");
-
-	char sMutation[32]; bool show;
+	char sMutations[255]; char sMutation[32];
 	for (int i = 0; i < sizeof(g_bMutations); i++)
 	{
 		g_bMutations[i] = GetRandomBool();
-		sMutation[0] = '\0';
+		GetMutationName(i, sMutation, sizeof(sMutation));
 
 		if (g_bMutations[i])
-		{
-			GetMutationName(i, sMutation, sizeof(sMutation));
-			Format(sMutationsList, sizeof(sMutationsList), "%s%s %s", sMutationsList, (strlen(sMutationsList) == 0) ? "" : ",", sMutation);
-			show = true;
-		}
+			Format(sMutations, sizeof(sMutations), "%s%s%s", sMutations, (strlen(sMutations) == 0) ? " " : ", ", sMutation);
 	}
 
-	if (show)
-		CPrintToChatAll("%s %s", PLUGIN_TAG_COLORED, sMutationsList);
+	CPrintToChatAll("%s Mutations:%s", PLUGIN_TAG_COLORED, strlen(sMutations) > 0 ? sMutations : " None Active");
 
 	//Tell people they can be faster moveable boys.
 	if (g_bMutations[MUTATION_DOUBLEVELOCITY])
@@ -3373,7 +3358,7 @@ public Action Command_SetMutations(int client, int args)
 		char sMutation[64];
 		GetCmdArgString(sMutation, sizeof(sMutation));
 
-		int mutation = MUTATION_NONE;
+		int mutation = -1;
 
 		if (IsStringNumeric(sMutation))
 		{
@@ -3399,14 +3384,14 @@ public Action Command_SetMutations(int client, int args)
 				}
 			}
 
-			if (mutation == MUTATION_NONE)
+			if (mutation == -1)
 			{
 				CReplyToCommand(client, "%s You have specified an invalid mutation name.", PLUGIN_TAG);
 				return Plugin_Handled;
 			}
 		}
 
-		if (mutation != MUTATION_NONE)
+		if (mutation != -1)
 		{
 			g_bMutations[mutation] = !g_bMutations[mutation];
 			GetMutationName(mutation, sMutation, sizeof(sMutation));
