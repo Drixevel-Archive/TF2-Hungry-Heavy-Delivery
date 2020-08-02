@@ -66,8 +66,6 @@ TODO LIST:
 ConVar convar_Default_Time;
 ConVar convar_Velocity_Primary;
 ConVar convar_Velocity_Primary_Double;
-//ConVar convar_Velocity_Secondary;
-//ConVar convar_Velocity_Secondary_Double;
 ConVar convar_Velocity_Melee;
 ConVar convar_Velocity_Melee_Double;
 ConVar convar_Velocity_Melee_Climb;
@@ -222,8 +220,6 @@ public void OnPluginStart()
 	convar_Default_Time = CreateConVar("sm_hhd_default_time", "300");
 	convar_Velocity_Primary = CreateConVar("sm_hhd_primary_vel", "3250");
 	convar_Velocity_Primary_Double = CreateConVar("sm_hhd_primary_vel_double", "3500");
-	//convar_Velocity_Secondary = CreateConVar("sm_hhd_secondary_vel", "1750");
-	//convar_Velocity_Secondary_Double = CreateConVar("sm_hhd_secondary_vel_double", "1500");
 	convar_Velocity_Melee = CreateConVar("sm_hhd_melee_vel", "1750.0");
 	convar_Velocity_Melee_Double = CreateConVar("sm_hhd_melee_vel_double", "1500.0");
 	convar_Velocity_Melee_Climb = CreateConVar("sm_hhd_melee_vel_climb", "4000.0");
@@ -1278,7 +1274,33 @@ public void Event_OnTeamplayRoundStart(Event event, const char[] name, bool dont
 	PrintCenterTextAll("Gamemode: %s", sGamemode);
 
 	if (g_iGamemodeType == GAMEMODE_TYPE_TEAMS)
+	{
 		EmitSoundToAllSafeDelayed("vo/announcer_you_must_not_fail_this_time.mp3", 3.0);
+
+		int gamerules = FindEntityByClassname(-1, "tf_gamerules");
+
+		if (!IsValidEntity(gamerules))
+			gamerules = CreateEntityByName("tf_gamerules");
+		
+		DispatchKeyValue(gamerules, "hud_type", "1");
+		DispatchSpawn(gamerules);
+		
+		char message[256];
+		
+		//BLU
+		Format(message, sizeof(message), "Blue Pizzas");
+		SetVariantString(message);
+		AcceptEntityInput(gamerules, "SetBlueTeamGoalString");
+		SetVariantString("2");
+		AcceptEntityInput(gamerules, "SetBlueTeamRole");
+
+		//RED
+		Format(message, sizeof(message), "Red Pizzas");
+		SetVariantString(message);
+		AcceptEntityInput(gamerules, "SetRedTeamGoalString");
+		SetVariantString("1");
+		AcceptEntityInput(gamerules, "SetRedTeamRole");
+	}
 
 	//Set the remaining time for this round.
 	g_iRemainingTime = convar_Default_Time.IntValue;
