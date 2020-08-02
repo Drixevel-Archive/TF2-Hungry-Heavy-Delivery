@@ -1429,9 +1429,20 @@ public void OnEntityCreated(int entity, const char[] classname)
 	{
 		SDKHook(entity, SDKHook_Spawn, OnDynamicPropSpawn);
 		SDKHook(entity, SDKHook_SpawnPost, OnDynamicPropSpawnPost);
+
+		if (g_bLate)
+		{
+			OnDynamicPropSpawn(entity);
+			OnDynamicPropSpawnPost(entity);
+		}
 	}
 	else if (StrEqual(classname, "trigger_multiple"))
+	{
 		SDKHook(entity, SDKHook_SpawnPost, OnTriggerSpawnPost);
+
+		if (g_bLate)
+			OnTriggerSpawnPost(entity);
+	}
 }
 
 //Fix so if you walk into the pickup zone, it doesn't drop a bunch of weapons once it regenerates you.
@@ -1463,7 +1474,7 @@ public void OnDynamicPropSpawnPost(int entity)
 		char sBuffer[256];
 		FormatEx(sBuffer, sizeof(sBuffer), "%s_glow", sName);
 
-		TF2_CreateGlow(sBuffer, entity, view_as<int>(StrEqual(sName, "heavy_himself") ? {255, 255, 255, 200} : {255, 0, 0, 200}));
+		TF2_CreateGlow(sBuffer, entity, view_as<int>(StrEqual(sName, "heavy_himself") ? {255, 255, 255, 150} : {255, 0, 0, 150}));
 	}
 }
 
@@ -1482,22 +1493,12 @@ public void OnTriggerSpawnPost(int entity)
 
 	if (StrEqual(sName, "pizza_pickup"))
 	{
-		Effect_DrawRangedBeamBox(vecOrigin, vecStart, vecEnd, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.0, 2.0, 2.0, 1, 0.0, {255, 255, 255, 120}, 0);
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaPickup);
+		Effect_DrawRangedBeamBox(vecOrigin, vecStart, vecEnd, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.0, 2.0, 2.0, 1, 0.0, {255, 255, 255, 120}, 0);
 	}
 
 	if (StrContains(sName, "pizza_delivery") != -1)
-	{
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaDelivery);
-
-		float vecGround[3];
-		GetEntGroundCoordinates(entity, vecGround);
-		CreateParticle("npc_boss_bomb_aoewarn", vecGround, 0.0);
-
-		float vecCeiling[3];
-		GetEntCeilingCoordinates(entity, vecCeiling);
-		CreateParticle("npc_boss_bomb_aoewarn", vecCeiling, 0.0);
-	}
 }
 
 public void Event_OnTeamplayWaitingEnds(Event event, const char[] name, bool dontBroadcast)
@@ -1901,7 +1902,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	{
 		if(buttons & IN_JUMP && g_bHanging[client] && !(buttons & IN_DUCK))
 		{
-			//PrintToChat(client, "Climbed up");
 			SetEntityMoveType(client, MOVETYPE_WALK);
 			
 			g_vecClimbPos[client][2] += 5.0;
@@ -1938,7 +1938,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		
 		Handle TraceRay = TR_TraceHullFilterEx(flOrigin, flOrigin, flMins, flMaxs, MASK_PLAYERSOLID, TraceFilterNotSelf, client);
 		bool bHit = TR_DidHit(TraceRay);
-		//TE_SendBox(client, bHit, flOrigin, flMins, flMaxs);
 		delete TraceRay;
 		
 		if(bHit)
@@ -1962,10 +1961,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			{
 				TR_GetEndPosition(flHitPos);
 				
-				//TE_SetupBeamPoints(flHitPos, flOrigin, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.1, 1.0, 1.0, 1, 0.0, {0, 255, 0, 100}, 0);
-				//TE_SendToClient(client);
-				
-				//Fat hull trace
 				GetClientMaxs(client, flMaxs);
 				GetClientMins(client, flMins);
 				
@@ -1975,11 +1970,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 				TR_GetEndPosition(fatty);
 				
-				//TE_SendBox(client, true, fatty, flMins, flMaxs);
-				
-				//TE_SetupBeamRingPoint(fatty, 10.0, 11.0, g_iLaserMaterial, g_iHaloMaterial, 0, 15, 0.1, 1.0, 1.0, {0, 255, 0, 100}, 5, 0);
-				//TE_SendToClient(client);
-				
 				GetClientEyePosition(client, flOrigin);
 				float flDistance = GetVectorDistance(flOrigin, fatty);
 				
@@ -1987,9 +1977,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				{
 					TR_TraceHullFilter(fatty, fatty, flMins, flMaxs, MASK_SOLID, TraceEntityFilterSolid, client);	//Test if we can fit to the dest pos before teleporting
 					if(!TR_DidHit())
-					{
-						//PrintToChat(client, "Attached to ledge at distance %f", flDistance);
-						
+					{						
 						g_vecClimbPos[client][0] = fatty[0];
 						g_vecClimbPos[client][1] = fatty[1];
 						g_vecClimbPos[client][2] = fatty[2];
@@ -3534,49 +3522,6 @@ public bool TraceEntityFilterSolid(int entityhit, int contentsMask, int entity)
 		return true;
 	
 	return false;
-}
-
-stock void TE_SendBox(int client, bool bHit, float flOrigin[3], float flMins[3], float flMaxs[3])
-{
-	float flMaxResult[3], flMinResult[3];
-	AddVectors(flOrigin, flMaxs, flMaxResult);
-	AddVectors(flOrigin, flMins, flMinResult);
-
-	float vPos1[3], vPos2[3], vPos3[3], vPos4[3], vPos5[3], vPos6[3];
-	vPos1 = flMaxResult;
-	vPos1[0] = flMinResult[0];
-	vPos2 = flMaxResult;
-	vPos2[1] = flMinResult[1];
-	vPos3 = flMaxResult;
-	vPos3[2] = flMinResult[2];
-	vPos4 = flMinResult;
-	vPos4[0] = flMaxResult[0];
-	vPos5 = flMinResult;
-	vPos5[1] = flMaxResult[1];
-	vPos6 = flMinResult;
-	vPos6[2] = flMaxResult[2];
-
-	/*TE_SendBeam(client, flMaxResult, vPos1, bHit);
-	TE_SendBeam(client, flMaxResult, vPos2, bHit);
-	TE_SendBeam(client, flMaxResult, vPos3, bHit);
-	TE_SendBeam(client, vPos6, vPos1, bHit);
-	TE_SendBeam(client, vPos6, vPos2, bHit);
-	TE_SendBeam(client, vPos6, flMinResult, bHit);
-	TE_SendBeam(client, vPos4, flMinResult, bHit);
-	TE_SendBeam(client, vPos5, flMinResult, bHit);
-	TE_SendBeam(client, vPos5, vPos1, bHit);
-	TE_SendBeam(client, vPos5, vPos3, bHit);
-	TE_SendBeam(client, vPos4, vPos3, bHit);
-	TE_SendBeam(client, vPos4, vPos2, bHit);*/
-}
-
-stock void TE_SendBeam(int client, float m_vecMins[3], float m_vecMaxs[3], bool bHit)
-{
-	if(!bHit)
-		TE_SetupBeamPoints(m_vecMins, m_vecMaxs, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.1, 1.0, 1.0, 1, 0.0, {255, 255, 255, 100}, 0);
-	else
-		TE_SetupBeamPoints(m_vecMins, m_vecMaxs, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.1, 1.0, 1.0, 1, 0.0, {255, 0, 0, 100}, 0);
-	TE_SendToClient(client);
 }
 
 void MapCircleToSquare(float out[3], const float input[3]) 
