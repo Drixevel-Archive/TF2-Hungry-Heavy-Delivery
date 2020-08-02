@@ -23,7 +23,7 @@ public void OnClientPutInServer(int client)
 
 public Action OnPlayerRunCmd(int client, int &iButtons, int &iImpulse, float fVel[3], float fAng[3], int &iWeapon)
 {
-	if (IsPlayerAlive(client) && GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") < 0)
+	if (IsPlayerAlive(client) && GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") < 0 && GetActiveWeaponSlot(client) == 2)
 	{
 		if(iButtons & IN_JUMP && g_bHanging[client] && !(iButtons & IN_DUCK))
 		{
@@ -145,6 +145,28 @@ public Action OnPlayerRunCmd(int client, int &iButtons, int &iImpulse, float fVe
 	}
 	
 	return Plugin_Continue;
+}
+
+
+stock int GetActiveWeaponSlot(int client)
+{
+	if (client == 0 || client > MaxClients || !IsClientInGame(client) || !IsPlayerAlive(client))
+		return -1;
+	
+	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+	
+	if (weapon == 0 || weapon < MaxClients || !IsValidEntity(weapon))
+		return -1;
+	
+	for (int i = 0; i < 5; i++)
+	{
+		if (GetPlayerWeaponSlot(client, i) != weapon)
+			continue;
+
+		return i;
+	}
+
+	return -1;
 }
 
 public bool TraceFilterNotSelf(int entityhit, int mask, any entity)
