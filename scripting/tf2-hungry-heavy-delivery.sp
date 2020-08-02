@@ -1115,11 +1115,10 @@ public Action OnSetTransmit(int client, int entity)
 	return Plugin_Continue;
 }
 
-//Stop fall damage and allow for no damage on the normal mode, others involve damage anyways.
-//May be editable for certain gamemodes.
+//Stop fall damage in-general, too much to deal with and stops the normal gameplay loop.
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
-	if (damagetype & DMG_FALL || g_iGamemodeType == GAMEMODE_TYPE_NORMAL)
+	if (damagetype & DMG_FALL)
 	{
 		damage = 0.0;
 		return Plugin_Changed;
