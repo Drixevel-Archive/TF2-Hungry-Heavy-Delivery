@@ -1807,7 +1807,7 @@ public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname
 			float velo[3];
 			GetEntPropVector(client, Prop_Data, "m_vecVelocity", velo);
 
-			AnglesToVelocity(angles, GetVectorLength(velo), vecVelocity);
+			AnglesToVelocity(angles, (GetVectorLength(velo) * 0.95), vecVelocity);
 
 			g_Airtime[client].secondaryshots++;
 
