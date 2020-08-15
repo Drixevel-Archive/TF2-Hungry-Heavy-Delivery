@@ -604,6 +604,8 @@ public Action OnSoundPlay(int clients[MAXPLAYERS], int &numClients, char sample[
 		strtolower(sBuffer[1], sBuffer[1], 512);
 
 		FormatEx(sample, PLATFORM_MAX_PATH, "vo/female_scout/%s", sBuffer[1]);
+		ReplaceString(sample, PLATFORM_MAX_PATH, ".mp3", ".wav");
+
 		return Plugin_Changed;
 	}
 
@@ -2773,7 +2775,6 @@ void ToggleGender(int client)
 	
 	char sAward[PLATFORM_MAX_PATH];
 	FormatEx(sAward, sizeof(sAward), g_Player[client].isfemale ? "vo/female_scout/scout_award0%i.mp3" : "vo/scout_award0%i.mp3", GetRandomInt(1, 9));
-
 	EmitSoundToClientSafe(client, sAward);
 }
 
