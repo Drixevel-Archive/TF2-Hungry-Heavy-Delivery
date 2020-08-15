@@ -278,18 +278,25 @@ public void OnPluginStart()
 	wep_primary = TF2Items_CreateItem(OVERRIDE_ALL);
 	TF2Items_SetClassname(wep_primary, "tf_weapon_scattergun");
 	TF2Items_SetItemIndex(wep_primary, 45);
-	TF2Items_SetNumAttributes(wep_primary, 7);					//JESUS
-	TF2Items_SetAttribute(wep_primary, 0, 44, 1.0);				//FUCKME
+	TF2Items_SetNumAttributes(wep_primary, 10);					//JESUS
+	TF2Items_SetAttribute(wep_primary, 0, 44, 0.0);				//FUCKME
 	TF2Items_SetAttribute(wep_primary, 1, 6, 0.5);				//FUCKME
 	TF2Items_SetAttribute(wep_primary, 2, 45, 1.2);				//FUCKME
 	TF2Items_SetAttribute(wep_primary, 3, 1, 0.9);				//FUCKME
 	TF2Items_SetAttribute(wep_primary, 4, 3, 0.34);				//FUCKME
 	TF2Items_SetAttribute(wep_primary, 5, 43, 1.0);				//FUCKME
 	TF2Items_SetAttribute(wep_primary, 6, 328, 1.0);			//FUCKME
+	TF2Items_SetAttribute(wep_primary, 7, 4, 1.50);				//FUCKME
+	TF2Items_SetAttribute(wep_primary, 8, 76, 4.0);				//FUCKME
+	TF2Items_SetAttribute(wep_primary, 9, 318, 0.75);			//FUCKME
 
 	wep_secondary = TF2Items_CreateItem(OVERRIDE_ALL);
 	TF2Items_SetClassname(wep_secondary, "tf_weapon_pistol");
 	TF2Items_SetItemIndex(wep_secondary, 23);
+	TF2Items_SetNumAttributes(wep_secondary, 3);					//JESUS
+	TF2Items_SetAttribute(wep_secondary, 0, 4, 3.0);				//FUCKME
+	TF2Items_SetAttribute(wep_secondary, 1, 78, 5.0);				//FUCKME
+	TF2Items_SetAttribute(wep_secondary, 2, 318, 1.50);				//FUCKME
 
 	wep_melee = TF2Items_CreateItem(OVERRIDE_ALL);
 	TF2Items_SetClassname(wep_melee, "tf_weapon_bat");
@@ -1679,10 +1686,9 @@ void SetSpawnFunctions(int client)
 
 	if (IsValidEntity(secondary))
 	{
-		TF2Attrib_SetByName_Weapons(client, secondary, "clip size bonus", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 1.5 : 3.00);
+		TF2Attrib_SetByName_Weapons(client, secondary, "clip size bonus", 3.0);
 		TF2Attrib_SetByName_Weapons(client, secondary, "maxammo secondary increased", 5.0);
 		TF2Attrib_SetByName_Weapons(client, secondary, "faster reload rate", 1.50);
-		//TF2Attrib_SetByName_Weapons(client, secondary, "fire rate penalty", (g_iGamemodeType == GAMEMODE_TYPE_BUNNYHOPPING) ? 30.0 : 5.00);
 	}
 
 	g_Airtime[client].recordcache = false;
