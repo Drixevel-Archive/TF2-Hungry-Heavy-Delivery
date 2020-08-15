@@ -2768,20 +2768,11 @@ void ToggleGender(int client)
 	SetClientCookie(client, g_hCookie_IsFemale, sValue);
 	CPrintToChat(client, "%s Gender swapped to %s.", PLUGIN_TAG_COLORED, g_Player[client].isfemale ? "Female" : "Male");
 
+	if (IsPlayerAlive(client))
+		SetModel(client, g_Player[client].isfemale ? "models/player/scout_female.mdl" : "models/player/scout.mdl");
+	
 	char sAward[PLATFORM_MAX_PATH];
-	switch (g_Player[client].isfemale)
-	{
-		case true:
-		{
-			SetModel(client, "models/player/scout_female.mdl");
-			FormatEx(sAward, sizeof(sAward), "vo/female_scout/scout_award0%i.mp3", GetRandomInt(1, 9));
-		}
-		case false:
-		{
-			SetModel(client, "models/player/scout.mdl");
-			FormatEx(sAward, sizeof(sAward), "vo/scout_award0%i.mp3", GetRandomInt(1, 9));
-		}
-	}
+	FormatEx(sAward, sizeof(sAward), g_Player[client].isfemale ? "vo/female_scout/scout_award0%i.mp3" : "vo/scout_award0%i.mp3", GetRandomInt(1, 9));
 
 	EmitSoundToClientSafe(client, sAward);
 }
