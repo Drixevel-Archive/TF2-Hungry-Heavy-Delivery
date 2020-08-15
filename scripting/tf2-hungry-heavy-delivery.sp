@@ -32,7 +32,8 @@ TODO LIST:
 
 #define MUTATION_DOUBLEVELOCITY 0
 #define MUTATION_SUPREMEPIZZAS 1
-#define MUTATIONS_TOTAL 2
+#define MUTATION_GPSMALFUNCTION 2
+#define MUTATIONS_TOTAL 3
 
 #define OVERLAY_TUTORIAL_01 "overlays/HHD/tutorial_01"
 #define OVERLAY_TUTORIAL_02 "overlays/HHD/tutorial_02"
@@ -78,7 +79,7 @@ Handle g_hCookie_TutorialPlayed;
 Handle g_hCookie_IsFemale;
 
 //Globals
-Database g_hDatabase;
+Database g_Database;
 char sCurrentMap[32];
 bool g_bLate;
 bool g_bBetweenRounds;
@@ -371,10 +372,10 @@ public void OnSQLConnect(Database db, const char[] error, any data)
 	if (db == null)
 		ThrowError("Error connecting to database: %s", error);
 
-	g_hDatabase = db;
+	g_Database = db;
 	LogMessage("Connected to database successfully.");
 
-	g_hDatabase.Query(onCreateTable, "CREATE TABLE IF NOT EXISTS `hungry_heavy_delivery_records` ( `id` INT NOT NULL AUTO_INCREMENT , `name` VARCHAR(64) NOT NULL DEFAULT '' , `steamid` VARCHAR(32) NOT NULL DEFAULT '' , `record_airtime` FLOAT NOT NULL DEFAULT '0.0' , `record_deliveries` INT(12) NOT NULL DEFAULT '0' , `map` VARCHAR(32) NOT NULL DEFAULT '', PRIMARY KEY (`id`), UNIQUE KEY `unique_index` ( `steamid`, `map`)) ENGINE = InnoDB;");
+	g_Database.Query(onCreateTable, "CREATE TABLE IF NOT EXISTS `hungry_heavy_delivery_records` ( `id` INT NOT NULL AUTO_INCREMENT , `name` VARCHAR(64) NOT NULL DEFAULT '' , `steamid` VARCHAR(32) NOT NULL DEFAULT '' , `record_airtime` FLOAT NOT NULL DEFAULT '0.0' , `record_deliveries` INT(12) NOT NULL DEFAULT '0' , `map` VARCHAR(32) NOT NULL DEFAULT '', PRIMARY KEY (`id`), UNIQUE KEY `unique_index` ( `steamid`, `map`)) ENGINE = InnoDB;");
 
 	char sSteamID[32];
 	for (int i = 1; i <= MaxClients; i++)
@@ -783,6 +784,9 @@ void GetDirectionArrow(int client, float vecOrigin1[3], float vecOrigin2[3], flo
 	if (diff > 180)
 		diff = 360 - diff;
 
+	if (g_bMutations[MUTATION_GPSMALFUNCTION])
+		diff = GetRandomFloat(-360.0, 360.0);
+
 	// Now geht the direction
 	// Up
 	if (diff >= -22.5 && diff < 22.5)
@@ -899,6 +903,28 @@ void GetDeliveryDestinationName(int destination, char[] buffer, int size)
 
 	//Misleading AF
 	GetEntPropString(destination, Prop_Data, "m_iParent", buffer, size);
+
+	char sCharacters[11][1] =
+	{
+		"x",
+		"X",
+		"|",
+		"=",
+		"-",
+		"_",
+		"0",
+		"Y",
+		"y",
+		"Z",
+		"z"
+	};
+
+	if (g_bMutations[MUTATION_GPSMALFUNCTION])
+	{
+		for (int i = 0; i < strlen(buffer); i++)
+			if (GetRandomInt(0, 1) == 1)
+				ReplaceString(buffer, size, buffer[i], sCharacters[GetRandomInt(0, 10)]);
+	}
 }
 
 int GetGameWinner()
@@ -1024,12 +1050,12 @@ public void OnClientCookiesCached(int client)
 
 public void OnClientAuthorized(int client, const char[] auth)
 {
-	if (g_hDatabase == null)
+	if (g_Database == null)
 		return;
 	
 	char sQuery[256];
-	g_hDatabase.Format(sQuery, sizeof(sQuery), "SELECT record_airtime, record_deliveries FROM `hungry_heavy_delivery_records` WHERE steamid = '%s' AND map = '%s';", auth, sCurrentMap);
-	g_hDatabase.Query(TQuery_OnGetRecord, sQuery, GetClientUserId(client));
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT record_airtime, record_deliveries FROM `hungry_heavy_delivery_records` WHERE steamid = '%s' AND map = '%s';", auth, sCurrentMap);
+	g_Database.Query(TQuery_OnGetRecord, sQuery, GetClientUserId(client));
 }
 
 public void TQuery_OnGetRecord(Database db, DBResultSet results, const char[] error, any data)
@@ -1404,6 +1430,11 @@ bool GetMutationName(int id, char[] buffer, int size)
 			strcopy(buffer, size, "Supreme Pizzas");
 			return true;
 		}
+		case MUTATION_GPSMALFUNCTION:
+		{
+			strcopy(buffer, size, "GPS Malfunction");
+			return true;
+		}
 	}
 
 	return false;
@@ -1560,16 +1591,14 @@ public void Event_OnTeamplayRoundWin(Event event, const char[] name, bool dontBr
 			g_Airtime[i].currentdeliveriesrecord = g_Airtime[i].rounddeliveriesrecord;
 
 			char sSteamID[32];
-			GetClientAuthId(i, AuthId_Steam2, sSteamID, sizeof(sSteamID));
-
-			if (g_hDatabase != null)
+			if (g_Database != null && GetClientAuthId(i, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
 			{
 				char sName[128];
-				SQL_FetchClientName(i, g_hDatabase, sName, sizeof(sName));
+				SQL_FetchClientName(i, g_Database, sName, sizeof(sName));
 
 				char sQuery[256];
-				g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_Airtime[i].currentairtimerecord, g_Airtime[i].currentdeliveriesrecord, sCurrentMap, g_Airtime[i].currentairtimerecord, g_Airtime[i].currentdeliveriesrecord);
-				g_hDatabase.Query(onInsertRecord, sQuery);
+				g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_Airtime[i].currentairtimerecord, g_Airtime[i].currentdeliveriesrecord, sCurrentMap, g_Airtime[i].currentairtimerecord, g_Airtime[i].currentdeliveriesrecord);
+				g_Database.Query(onInsertRecord, sQuery);
 			}
 		}
 	}
@@ -2105,14 +2134,14 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			char sSteamID[32];
 			GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID));
 
-			if (g_hDatabase != null)
+			if (g_Database != null)
 			{
 				char sName[128];
-				SQL_FetchClientName(client, g_hDatabase, sName, sizeof(sName));
+				SQL_FetchClientName(client, g_Database, sName, sizeof(sName));
 
 				char sQuery[256];
-				g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_Airtime[client].currentairtimerecord, g_Airtime[client].currentdeliveriesrecord, sCurrentMap, g_Airtime[client].currentairtimerecord, g_Airtime[client].currentdeliveriesrecord);
-				g_hDatabase.Query(onInsertRecord2, sQuery);
+				g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `hungry_heavy_delivery_records` (name, steamid, record_airtime, record_deliveries, map) VALUES ('%s', '%s', '%f', '%i', '%s') ON DUPLICATE KEY UPDATE record_airtime = '%f', record_deliveries = '%i';", sName, sSteamID, g_Airtime[client].currentairtimerecord, g_Airtime[client].currentdeliveriesrecord, sCurrentMap, g_Airtime[client].currentairtimerecord, g_Airtime[client].currentdeliveriesrecord);
+				g_Database.Query(onInsertRecord2, sQuery);
 			}
 
 			float offset[3] = {0.0, 0.0, 80.0};
@@ -2862,7 +2891,7 @@ void OpenTopAirtimes(int client)
 {
 	char sQuery[256];
 	FormatEx(sQuery, sizeof(sQuery), "SELECT name, record_airtime FROM `hungry_heavy_delivery_records` WHERE map = '%s' ORDER BY record_airtime DESC LIMIT 0,25;", sCurrentMap);
-	g_hDatabase.Query(TQuery_OnShowTopAirtimes, sQuery, GetClientUserId(client));
+	g_Database.Query(TQuery_OnShowTopAirtimes, sQuery, GetClientUserId(client));
 }
 
 public void TQuery_OnShowTopAirtimes(Database owner, DBResultSet hndl, const char[] error, any data)
@@ -2947,14 +2976,14 @@ public int MenuHandler_ResetAirtimeRecords(Menu menu, MenuAction action, int par
 
 			if (StrEqual(sInfo, "yes"))
 			{
-				if (g_hDatabase != null)
+				if (g_Database != null)
 				{
 					char sSteamID[32];
 					GetClientAuthId(param1, AuthId_Steam2, sSteamID, sizeof(sSteamID));
 
 					char sQuery[256];
-					g_hDatabase.Format(sQuery, sizeof(sQuery), "UPDATE `hungry_heavy_delivery_records` SET record_airtime = '0.0' WHERE steamid = '%s' AND map = '%s';", sSteamID, sCurrentMap);
-					g_hDatabase.Query(onUpdateRecord, sQuery);
+					g_Database.Format(sQuery, sizeof(sQuery), "UPDATE `hungry_heavy_delivery_records` SET record_airtime = '0.0' WHERE steamid = '%s' AND map = '%s';", sSteamID, sCurrentMap);
+					g_Database.Query(onUpdateRecord, sQuery);
 
 					g_Airtime[param1].currentairtimerecord = 0.0;
 					CPrintToChat(param1, "%s You have reset your airtime record for this map successfully.", PLUGIN_TAG_COLORED);
@@ -2994,7 +3023,7 @@ void OpenTopDeliveries(int client)
 {
 	char sQuery[256];
 	FormatEx(sQuery, sizeof(sQuery), "SELECT name, record_deliveries FROM `hungry_heavy_delivery_records` WHERE map = '%s' ORDER BY record_deliveries DESC LIMIT 0,25;", sCurrentMap);
-	g_hDatabase.Query(TQuery_OnShowTopDeliveries, sQuery, GetClientUserId(client));
+	g_Database.Query(TQuery_OnShowTopDeliveries, sQuery, GetClientUserId(client));
 }
 
 public void TQuery_OnShowTopDeliveries(Database owner, DBResultSet hndl, const char[] error, any data)
@@ -3077,14 +3106,14 @@ public int MenuHandler_ResetDeliveryRecords(Menu menu, MenuAction action, int pa
 
 			if (StrEqual(sInfo, "yes"))
 			{
-				if (g_hDatabase != null)
+				if (g_Database != null)
 				{
 					char sSteamID[32];
 					GetClientAuthId(param1, AuthId_Steam2, sSteamID, sizeof(sSteamID));
 
 					char sQuery[256];
-					g_hDatabase.Format(sQuery, sizeof(sQuery), "UPDATE `hungry_heavy_delivery_records` SET record_deliveries = '0' WHERE steamid = '%s' AND map = '%s';", sSteamID, sCurrentMap);
-					g_hDatabase.Query(onUpdateRecord2, sQuery);
+					g_Database.Format(sQuery, sizeof(sQuery), "UPDATE `hungry_heavy_delivery_records` SET record_deliveries = '0' WHERE steamid = '%s' AND map = '%s';", sSteamID, sCurrentMap);
+					g_Database.Query(onUpdateRecord2, sQuery);
 
 					g_Airtime[param1].currentdeliveriesrecord = 0;
 					CPrintToChat(param1, "%s You have reset your delivery record for this map successfully.", PLUGIN_TAG_COLORED);
