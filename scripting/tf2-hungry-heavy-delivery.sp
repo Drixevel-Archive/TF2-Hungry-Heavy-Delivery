@@ -1517,11 +1517,17 @@ public void OnTriggerSpawnPost(int entity)
 	if (StrEqual(sName, "pizza_pickup"))
 	{
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaPickup);
+		SDKHook(entity, SDKHook_Touch, OnPizzaPickup);
+		SDKHook(entity, SDKHook_EndTouch, OnPizzaPickup);
 		Effect_DrawRangedBeamBox(vecOrigin, vecStart, vecEnd, g_iLaserMaterial, g_iHaloMaterial, 0, 0, 0.0, 2.0, 2.0, 1, 0.0, {255, 255, 255, 120}, 0);
 	}
 
 	if (StrContains(sName, "pizza_delivery") != -1)
+	{
 		SDKHook(entity, SDKHook_StartTouch, OnPizzaDelivery);
+		SDKHook(entity, SDKHook_Touch, OnPizzaDelivery);
+		SDKHook(entity, SDKHook_EndTouch, OnPizzaDelivery);
+	}
 }
 
 public void Event_OnTeamplayWaitingEnds(Event event, const char[] name, bool dontBroadcast)
