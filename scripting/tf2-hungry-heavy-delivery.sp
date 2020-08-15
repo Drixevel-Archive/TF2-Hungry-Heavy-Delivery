@@ -1185,6 +1185,23 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	g_Player[client].supreme = false;
 
 	ClearTutorial(client);
+
+	int spawns[2048];
+	int totalspawns;
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "info_player_teamspawn")) != -1)
+		spawns[totalspawns++] = entity;
+
+	int tele = spawns[GetRandomInt(0, totalspawns - 1)];
+
+	float origin[3];
+	GetEntityOrigin(tele, origin);
+
+	float angles[3];
+	GetEntityAngles(tele, angles);
+
+	TeleportEntity(client, origin, angles, NULL_VECTOR);
 }
 
 public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
