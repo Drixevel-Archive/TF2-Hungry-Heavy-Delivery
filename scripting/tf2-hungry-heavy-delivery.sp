@@ -1958,11 +1958,11 @@ public Action Timer_NextTutorialStep(Handle timer, any data)
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
-	if ((!(GetEntityFlags(client) & FL_FAKECLIENT) && buttons & IN_JUMP) && (GetEntityFlags(client) & FL_ONGROUND))
+	/*if ((!(GetEntityFlags(client) & FL_FAKECLIENT) && buttons & IN_JUMP) && (GetEntityFlags(client) & FL_ONGROUND))
 	{
 		int nOldButtons = GetEntProp(client, Prop_Data, "m_nOldButtons");
 		SetEntProp(client, Prop_Data, "m_nOldButtons", (nOldButtons &= ~(IN_JUMP | IN_DUCK)));
-	}
+	}*/
 
 	if (IsPlayerAlive(client) && GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") < 0 && GetActiveWeaponSlot(client) == 2)
 	{
